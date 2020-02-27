@@ -1,14 +1,12 @@
 #!/usr/bin/env zsh
 
 # song info notifications for mpd
-# extbin: mpc curl convert jq sed notify-send
+# extbin: mpc curl convert jq sed notify-send cava md5sum
 
 APP_NAME="mpnotd"
 
 RC_FILE="$HOME/.config/$APP_NAME/config"
 CACHE_DIR="$HOME/.cache/$APP_NAME"
-COVER_CUR="$CACHE_DIR/current.jpg"
-COVER_LAST="$CACHE_DIR/last.jpg"
 
 POPUP_TITLE=" Now Playing"
 POPUP_TIME=30
@@ -24,22 +22,28 @@ function fetch_cover() {
   local search_url
   local cover_url
 
-  # create search URL
-  search_url="http://api.deezer.com/search/autocomplete?q=$cur_song" && search_url=${search_url//' '/'%20'}
-
-  # parse JSON for cover art URL
-  cover_url=$(curl -s "$search_url" | jq -r '.tracks.data[0].album.cover_medium')
-
-  # backup current cover
+  # find cover art
+  COVER_CUR=$CACHE_DIR/$(_get_hash $cur_song).jpg
   if [ -f $COVER_CUR ]
   then
-    cp $COVER_CUR $COVER_LAST
+    # found cached image
+    [[ $DEBUG -eq 1 ]] && echo "Using cached cover: $COVER_CUR"
+  else
+    # create search URL
+    search_url="http://api.deezer.com/search/autocomplete?q=$cur_song" && search_url=${search_url//' '/'%20'}
+
+    # parse JSON for cover art URL
+    cover_url=$(curl -s "$search_url" | jq -r '.tracks.data[0].album.cover_medium')
+
+    # fetch cover
+    curl -o $COVER_CUR -s $cover_url
+    [[ $DEBUG -eq 1 ]] && echo "Fetched cover: $COVER_CUR"
   fi
 
-  # fetch cover
-  curl -o $COVER_CUR -s $cover_url
-
 }
+
+# return hash from song info
+function _get_hash() { echo -n $1 | md5sum | cut -d' ' -f1 }
 
 # show notification
 function show_popup() {
@@ -64,11 +68,26 @@ function cava_color() {
 
   local color=$1
 
+  if [ -z $color ]
+  then
+    color=$CAVA_ORIG
+  fi
+
   if [ -f $CAVA_CFG ]
   then
     sed -i "s/^foreground.*$/foreground = '$color'/g" $CAVA_CFG
-    pkill -USR2 cava &|
+    [[ $DEBUG -eq 1 ]] && echo "Set CAVA color to '$color'"
+    pkill -USR2 cava &
   fi
+
+}
+
+# get original cava color
+function _cache_color() {
+
+  grep foreground $CAVA_CFG | \
+    awk -F" = " '{print $2}' | \
+    tr -d "'"
 
 }
 
@@ -116,6 +135,7 @@ function main() {
 
     # get current cur_song
     cur_song=$(mpc current)
+    [[ $DEBUG -eq 1 ]] && echo "Playing: $cur_song"
 
     # empty, do nothing
     if [ -z $cur_song ]
@@ -185,22 +205,30 @@ do
     -c | --cava)
       CAVA_ENABLED=true
       shift;;
-    -h)
+    -h | --help)
       usage
       exit 0;;
   esac
 done
 
+# create cache directory
 if [ ! -d $CACHE_DIR ]
 then
-  echo "Creating cache: $CACHE_DIR"
+  [[ $DEBUG -eq 1 ]] && echo "Creating cache: $CACHE_DIR"
   mkdir -p "$CACHE_DIR"
 fi
 
+# load config
 if [ -f $RC_FILE ]
 then
-  echo "Loading config: $RC_FILE"
+  [[ $DEBUG -eq 1 ]] && echo "Loading config: $RC_FILE"
   source $RC_FILE
+fi
+
+# start with previous cava color
+if [[ $CAVA_ENABLED == true ]]
+then
+  CAVA_ORIG=$(_cache_color)
 fi
 
 main

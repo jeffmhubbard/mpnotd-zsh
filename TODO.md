@@ -1,4 +1,4 @@
 # TODO
 
-- Cache covert art to reduce load times and web traffic
+- Add option to purge cached images
 - Get cava colors from list 
