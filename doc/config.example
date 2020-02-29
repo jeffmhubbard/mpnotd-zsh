@@ -2,13 +2,18 @@
 
 # set title of popup
 POPUP_TITLE=" Now Playing"
+
 # time to display popup (seconds)
 POPUP_TIME=30
+
 # popup urgency (low, normal, critical)
-POPUP_TYPE=low
+POPUP_LEVEL=low
 
 # change CAVA fg color based on cover art
 CAVA_ENABLED=true
+
 # path to CAVA config
 CAVA_CFG="$HOME/.config/cava/config"
 
+# palette to use instead of dominant color
+CAVA_COLORS=(fc391f 31e722 eaec23 5833ff f935f8 14f0f0)

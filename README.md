@@ -30,29 +30,35 @@ sudo install -Dm 755 mpnotd.zsh /usr/local/bin/mpnotd.zsh
 To start from terminal or application launcher:  
   `mpnotd.zsh --time 20 -u low --cava`  
   
-| Arg | Data | Effect |
-| :- | :- | :- |
-| --config | path | specify alternate config file
-| -t or --time | number | time to display popup (in seconds)
-| -u or --urgency | string | string | urgency level (low, normal, critical)
-| -c or --cava | toggle | enable cava color
-| -h or --help | | print help
+| Arg | |
+| :- | :- |
+| --config | specify path to config file
+| -t, --time | time to display popup (in seconds)
+| -u, --urgency | string | urgency level (low, normal, critical)
+| -c, --cava | enable cava color
+| -h, --help | print help
   
 ### Configuration  
   
-```sd
+```sh
 # mpnotd config
 
 # set title of popup
 POPUP_TITLE=" Now Playing"
+
 # time to display popup (seconds)
 POPUP_TIME=30
+
 # popup urgency (low, normal, critical)
-POPUP_TYPE=low
+POPUP_LEVEL=low
 
 # change CAVA fg color based on cover art
 CAVA_ENABLED=true
+
 # path to CAVA config
 CAVA_CFG="$HOME/.config/cava/config"
+
+# palette to use instead of dominant color
+CAVA_COLORS=(fc391f 31e722 eaec23 5833ff f935f8 14f0f0)
 
 ```
