@@ -10,12 +10,53 @@ RC_FILE=$HOME/.config/$APP_NAME/config
 CACHE_DIR=$HOME/.cache/$APP_NAME
 COVER_CUR=$CACHE_DIR/current.jpg
 
+POPUP_ENABLED=true
 POPUP_TITLE=" Now Playing"
 POPUP_TIME=30
 POPUP_LEVEL=low
 
 CAVA_ENABLED=false
 CAVA_CFG=$HOME/.config/cava/config
+
+COVER_ENABLED=false
+COVER_SIZE=300x300
+COVER_POSITION=+1580+720
+
+# main
+function main() {
+
+  local cur_song
+  local RUN_ONCE=true
+
+  while true
+  do
+
+    cur_song=$(mpc current)
+
+    if [ -z $cur_song ]
+    then
+      [[ $DEBUG -gt 0 ]] && echo "Could not get current song info..."
+      continue
+    fi
+
+    [[ $DEBUG -gt 0 ]] && echo "Playing: $cur_song"
+
+    fetch_cover $cur_song
+
+    [[ $POPUP_ENABLED == true ]] && show_popup $cur_song
+    [[ $CAVA_ENABLED == true ]] && cava_color
+    [[ $COVER_ENABLED == true ]] && cover_mode
+    [[ $TEST_ENABLED == true ]] && test_fun
+
+    while true
+    do
+      [[ $DEBUG -gt 0 ]] && echo "Waiting..."
+      mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
+    done
+
+  done
+
+}
 
 # fetch cover art
 function fetch_cover() {
@@ -52,11 +93,23 @@ function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
 # show notification
 function show_popup() {
 
+  local cur_song=$1
   local title=$POPUP_TITLE
-  local body=$1
+  local body
   local icon=$COVER_ART
   local time=$POPUP_TIME
   local urgency=$POPUP_LEVEL
+  local fields
+
+  fetch_cover $cur_song
+
+  fields=( ${(s: - :)cur_song} )
+  body="$fields[2]\n"
+  body+="By $fields[1]"
+  if [ $#fields -gt 2 ]
+  then
+    body+="\nFrom $fields[3]"
+  fi
 
   ((time = $time * 1000))
 
@@ -74,7 +127,7 @@ function cava_color() {
 
   if [ -f $CAVA_CFG ]
   then
-    dcolor=$(_get_dominant_color $COVER_ART)
+    dcolor=$(_get_dominant_color $COVER_CUR)
     [[ $DEBUG -gt 0 ]] && echo "Got dominant color '$dcolor'"
 
     if [ -z $dcolor ]
@@ -104,7 +157,7 @@ function cava_color() {
 function _cava_cur_color() {
 
   grep foreground $CAVA_CFG | \
-    awk -F" = " '{print $2}' | \
+    awk -F " = " '{print $2}' | \
     tr -d "'"
 
 }
@@ -118,7 +171,7 @@ function _get_dominant_color() {
   
   if [ -f $infile ]
   then
-    histogram=$(convert $infile -format %c -depth 8 histogram:info:)
+    histogram=$(magick $infile -format %c -depth 8 histogram:info:)
     color=($(echo $histogram | sort -n | tail -n 1))
     echo ${color[3]:gs/#/}
   fi
@@ -129,10 +182,11 @@ function _get_dominant_color() {
 function _get_palette_match() {
 
     local incolor=$1
+    local pcolor
 
-    for (( i = 1; i <= $#CAVA_COLORS; i++ ))
+    for pcolor in $CAVA_COLORS
     do
-      echo "$(_color_dist $incolor $CAVA_COLORS[$i]) $CAVA_COLORS[$i]"
+      echo "$(_color_dist $incolor $pcolor) $pcolor"
     done | sort -g | head -n 1 | cut -d ' ' -f 2
 
 }
@@ -154,6 +208,16 @@ function _color_dist() {
 # convert hex color (without #) to rgb (128 128 128)
 function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 
+# show floating cover art
+function cover_mode() {
+
+  if [[ $RUN_ONCE == true ]]; then
+    RUN_ONCE=false
+    ( feh -g $COVER_SIZE$COVER_POSITION -xZ $COVER_CUR )&|
+  fi
+
+}
+
 # kill running instance
 function clean_run() {
 
@@ -174,62 +238,17 @@ function clean_run() {
 
 }
 
-# main loop
-function main() {
-
-  local cur_song
-  local -a fields
-
-  while true
-  do
-
-    cur_song=$(mpc current)
-
-    if [ -z $cur_song ]
-    then
-      [[ $DEBUG -gt 0 ]] && echo "Could not get current song info..."
-      continue
-    fi
-
-    [[ $DEBUG -gt 0 ]] && echo "Playing: $cur_song"
-
-    fetch_cover $cur_song
-
-    fields=( ${(s: - :)cur_song} )
-    message="$fields[2]\n"
-    message+="By $fields[1]"
-    if [ $#fields -gt 2 ]
-    then
-      message+="\nFrom $fields[3]"
-    fi
-
-    if show_popup $message
-    then
-      [[ $DEBUG -gt 0 ]] && echo "Running extras..."
-      [[ $CAVA_ENABLED == true ]] && cava_color
-    fi
-
-    while true
-    do
-      [[ $DEBUG -gt 0 ]] && echo "Waiting..."
-      mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
-    done
-
-  done
-
-}
-
 # help message
 function usage() {
 
   echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-c]"
   echo
   echo "optional:"
-  echo "   -h, --help        show this help message and exit"
-  echo "   --config          specify path to config file"
-  echo "   -t, --time        time (in seconds) to display popup"
-  echo "   -u, --urgency     popup urgency (low, normal, critical)"
-  echo "   -c, --cava        enable changing CAVA color"
+  echo "  -h, --help        show this help message and exit"
+  echo "  --config          specify path to config file"
+  echo "  -t, --time        time (in seconds) to display popup"
+  echo "  -u, --urgency     popup urgency (low, normal, critical)"
+  echo "  -c, --cava        enable changing CAVA color"
   echo
 
 }
@@ -277,6 +296,7 @@ fi
 if [[ $CAVA_ENABLED == true ]]
 then
   CAVA_ORIG=$(_cava_cur_color)
+  [[ $DEBUG -gt 0 ]] && echo "Original CAVA color: $CAVA_ORIG"
 fi
 
 main

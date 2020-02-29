@@ -30,13 +30,13 @@ sudo install -Dm 755 mpnotd.zsh /usr/local/bin/mpnotd.zsh
 To start from terminal or application launcher:  
   `mpnotd.zsh --time 20 -u low --cava`  
   
-| Arg | |
-| :- | :- |
-| --config | specify path to config file
-| -t, --time | time to display popup (in seconds)
-| -u, --urgency | string | urgency level (low, normal, critical)
-| -c, --cava | enable cava color
-| -h, --help | print help
+```sh
+--config        specify path to config file
+-t, --time      time to display popup (in seconds)
+-u, --urgency   urgency level (low, normal, critical)
+-c, --cava      enable cava color
+-h, --help      print help
+```
   
 ### Configuration  
   
