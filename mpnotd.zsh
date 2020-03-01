@@ -9,6 +9,7 @@ APP_NAME="mpnotd"
 RC_FILE=$HOME/.config/$APP_NAME/config
 CACHE_DIR=$HOME/.cache/$APP_NAME
 COVER_CUR=$CACHE_DIR/current.jpg
+STOCK_ART=$CACHE_DIR/stock.jpg
 
 POPUP_ENABLED=true
 POPUP_TITLE=" Now Playing"
@@ -19,14 +20,28 @@ CAVA_ENABLED=false
 CAVA_CFG=$HOME/.config/cava/config
 
 COVER_ENABLED=false
-COVER_SIZE=300x300
-COVER_POSITION=+1580+720
+COVER_SIZE=200x200
+COVER_POSITION=+1680+820
+
+# load config
+if [ -f $RC_FILE ]
+then
+  [[ $DEBUG -gt 0 ]] && echo "Loading config: $RC_FILE"
+  source $RC_FILE
+fi
+
+# create cache directory
+if [ ! -d $CACHE_DIR ]
+then
+  [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
+  mkdir -p "$CACHE_DIR"
+fi
 
 # main
 function main() {
 
   local cur_song
-  local RUN_ONCE=true
+  local RUN_ONCE=false
 
   while true
   do
@@ -53,6 +68,8 @@ function main() {
       [[ $DEBUG -gt 0 ]] && echo "Waiting..."
       mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
     done
+
+    RUN_ONCE=true
 
   done
 
@@ -83,12 +100,23 @@ function fetch_cover() {
     [[ $DEBUG -gt 0 ]] && echo "File path: $COVER_ART"
   fi
 
-  cp $COVER_ART $COVER_CUR 2>/dev/null
+  if [ -f $COVER_ART ]
+  then
+    cp $COVER_ART $COVER_CUR 2>/dev/null
+  else
+    cp $STOCK_ART $COVER_CUR 2>/dev/null
+  fi
 
 }
 
 # return md5 hash from string
 function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
+
+# create stock image to use when cover art isn't found
+function make_stock_art() {
+  magick -size 64x64 gradient: $STOCK_ART
+  magick -size 64x64 gradient:blue-black $STOCK_ART
+}
 
 # show notification
 function show_popup() {
@@ -100,8 +128,6 @@ function show_popup() {
   local time=$POPUP_TIME
   local urgency=$POPUP_LEVEL
   local fields
-
-  fetch_cover $cur_song
 
   fields=( ${(s: - :)cur_song} )
   body="$fields[2]\n"
@@ -211,12 +237,15 @@ function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 # show floating cover art
 function cover_mode() {
 
-  if [[ $RUN_ONCE == true ]]; then
-    RUN_ONCE=false
-    ( feh -g $COVER_SIZE$COVER_POSITION -xZ $COVER_CUR )&|
+  if [[ $RUN_ONCE == false ]]; then
+    ( feh -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
+    echo $! >$CACHE_DIR/feh.pid
   fi
 
 }
+
+# make feh exit with script
+function feh_exit() { kill -9 $(cat $CACHE_DIR/feh.pid) &> /dev/null }
 
 # kill running instance
 function clean_run() {
@@ -260,17 +289,26 @@ clean_run
 for arg in $@
 do
   case $arg in
-    --config)
+    -C | --config)
       RC_FILE=$2
       shift 2;;
+    -p | --popup)
+      POPUP_ENABLED=true
+      shift;;
     -t | --time)
       POPUP_TIME=$2
       shift 2;;
     -u | --urgency)
       POPUP_LEVEL=$2
       shift 2;;
-    -c | --cava)
+    -v | --cava)
       CAVA_ENABLED=true
+      shift;;
+    -c | --cover)
+      COVER_ENABLED=true
+      shift;;
+    -D | --debug)
+      DEBUG=1
       shift;;
     -h | --help)
       usage
@@ -278,19 +316,8 @@ do
   esac
 done
 
-# create cache directory
-if [ ! -d $CACHE_DIR ]
-then
-  [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
-  mkdir -p "$CACHE_DIR"
-fi
-
-# load config
-if [ -f $RC_FILE ]
-then
-  [[ $DEBUG -gt 0 ]] && echo "Loading config: $RC_FILE"
-  source $RC_FILE
-fi
+# check for stock image
+[[ ! -f $STOCK_ART ]] && make_stock_art
 
 # save original cava color
 if [[ $CAVA_ENABLED == true ]]
@@ -299,6 +326,13 @@ then
   [[ $DEBUG -gt 0 ]] && echo "Original CAVA color: $CAVA_ORIG"
 fi
 
+# set trap for feh
+if [[ $COVER_ENABLED == true ]]
+then
+  trap feh_exit EXIT
+fi
+
+# go
 main
 
 exit 0
