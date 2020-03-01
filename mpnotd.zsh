@@ -248,10 +248,10 @@ function show_cover() {
   [[ -n $COVER_TIME ]] && local RUN_ONCE=true
 
   if [[ $RUN_ONCE == true ]]; then
+    [[ $DEBUG -gt 0 ]] && echo "Displaying cover art..."
     ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
     echo $! >$CACHE_DIR/cover.pid
-    [[ -n $COVER_TIME ]] && { sleep $COVER_TIME; feh_exit; }
-    [[ $DEBUG -gt 0 ]] && echo "Displaying cover art..."
+    [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; ) &|
   fi
 
 }
