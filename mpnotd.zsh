@@ -237,7 +237,7 @@ function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 function show_cover() {
 
   if [[ $RUN_ONCE == true ]]; then
-    ( feh -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
+    ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
     echo $! >$CACHE_DIR/feh.pid
   fi
 
