@@ -25,20 +25,6 @@ COVER_ENABLE=false
 COVER_SIZE=200x200
 COVER_POSITION=+1680+820
 
-# load config
-if [ -f $RC_FILE ]
-then
-  [[ $DEBUG -gt 0 ]] && echo "Loading config: $RC_FILE"
-  source $RC_FILE
-fi
-
-# create cache directory
-if [ ! -d $CACHE_DIR ]
-then
-  [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
-  mkdir -p "$CACHE_DIR"
-fi
-
 # main
 function main() {
 
@@ -306,8 +292,19 @@ function usage() {
 
 }
 
-# kill others
-clean_run
+# load config
+if [ -f $RC_FILE ]
+then
+  [[ $DEBUG -gt 0 ]] && echo "Loading config: $RC_FILE"
+  source $RC_FILE
+fi
+
+# create cache directory
+if [ ! -d $CACHE_DIR ]
+then
+  [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
+  mkdir -p "$CACHE_DIR"
+fi
 
 # parse arguments
 for arg in $@
@@ -315,7 +312,8 @@ do
   case $arg in
     -C | --config)
       RC_FILE=$2
-      shift 2;;
+      source $RC_FILE
+      break;;
     -p | --popup)
       POPUP_ENABLE=true
       shift;;
@@ -358,6 +356,9 @@ if [[ $COVER_ENABLE == true ]]
 then
   trap feh_exit EXIT
 fi
+
+# kill others
+clean_run
 
 # go
 main
