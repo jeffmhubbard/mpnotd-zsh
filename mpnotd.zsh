@@ -8,12 +8,14 @@ APP_NAME="mpnotd"
 # defaults
 RC_FILE=$HOME/.config/$APP_NAME/config
 CACHE_DIR=$HOME/.cache/$APP_NAME
+CACHE_AGE=10
 COVER_CUR=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
 
+
 POPUP_ENABLE=true
 POPUP_TITLE=" Now Playing"
-POPUP_TIME=30
+POPUP_TIME=10
 POPUP_LEVEL=low
 
 CAVA_ENABLE=false
@@ -56,7 +58,7 @@ function main() {
 
     [[ $DEBUG -gt 0 ]] && echo "Playing: $cur_song"
 
-    fetch_cover $cur_song
+    get_cover_art $cur_song
 
     [[ $POPUP_ENABLE == true ]] && show_popup $cur_song
     [[ $CAVA_ENABLE == true ]] && cava_color
@@ -74,29 +76,18 @@ function main() {
 
 }
 
-# fetch cover art
-function fetch_cover() {
+# get cover art
+function get_cover_art() {
 
-  local cur_song=$1
-  local search_url
-  local cover_url
+  local song=$1
 
-  COVER_ART=$CACHE_DIR/$(_get_hash $cur_song).jpg
+  COVER_ART=$CACHE_DIR/cover-$(_get_hash $song).jpg
 
   if [ -f $COVER_ART ]
   then
     [[ $DEBUG -gt 0 ]] && echo "Using cached cover: $COVER_ART"
   else
-    [[ $DEBUG -gt 0 ]] && echo "Finding cover for: $cur_song"
-
-    search_url="http://api.deezer.com/search/autocomplete?q=$cur_song" && search_url=${search_url//' '/'%20'}
-    [[ $DEBUG -gt 0 ]] && echo "Search URL: $search_url"
-
-    cover_url=$(curl -s "$search_url" | jq -r '.tracks.data[0].album.cover_medium')
-    [[ $DEBUG -gt 0 ]] && echo "Cover URL: $cover_url"
-
-    curl -o $COVER_ART -s $cover_url
-    [[ $DEBUG -gt 0 ]] && echo "File path: $COVER_ART"
+    fetch_cover $song
   fi
 
   if [ -f $COVER_ART ]
@@ -105,6 +96,24 @@ function fetch_cover() {
   else
     cp $STOCK_ART $COVER_CUR 2>/dev/null
   fi
+
+}
+
+# fetch cover art
+function fetch_cover() {
+
+  local song=$1
+  local search_url
+  local cover_url
+
+  search_url="http://api.deezer.com/search/autocomplete?q=$song" && search_url=${search_url//' '/'%20'}
+  [[ $DEBUG -gt 0 ]] && echo "Search URL: $search_url"
+
+  cover_url=$(curl -s "$search_url" | jq -r '.tracks.data[0].album.cover_medium')
+  [[ $DEBUG -gt 0 ]] && echo "Cover URL: $cover_url"
+
+  curl -o $COVER_ART -s $cover_url
+  [[ $DEBUG -gt 0 ]] && echo "File path: $COVER_ART"
 
 }
 
@@ -236,21 +245,37 @@ function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 # show floating cover art
 function show_cover() {
 
+  [[ -n $COVER_TIME ]] && local RUN_ONCE=true
+
   if [[ $RUN_ONCE == true ]]; then
     ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
-    echo $! >$CACHE_DIR/feh.pid
+    echo $! >$CACHE_DIR/cover.pid
+    [[ -n $COVER_TIME ]] && { sleep $COVER_TIME; feh_exit; }
+    [[ $DEBUG -gt 0 ]] && echo "Displaying cover art..."
   fi
 
 }
 
 # make feh exit with script
-function feh_exit() { kill -9 $(cat $CACHE_DIR/feh.pid) &> /dev/null }
+function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
+
+# purge cached covert art
+function purge_cache() {
+
+  local pattern="cover-*.jpg"
+
+  if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_AGE -exec rm -f {} \;
+  then
+    [[ DEBUG -gt 0 ]] && echo "Purged covers older than: $CACHE_AGE days"
+  fi
+
+}
 
 # kill running instance
 function clean_run() {
 
   local pid=$$
-  local pidfile=$CACHE_DIR/pid
+  local pidfile=$CACHE_DIR/$APP_NAME.pid
   local oldpid
 
   if [ -f $pidfile ]
@@ -317,6 +342,9 @@ done
 
 # check for stock image
 [[ ! -f $STOCK_ART ]] && make_stock_art
+
+# purge old cover art
+[[ -d $CACHE_DIR ]] && purge_cache
 
 # save original cava color
 if [[ $CAVA_ENABLE == true ]]
