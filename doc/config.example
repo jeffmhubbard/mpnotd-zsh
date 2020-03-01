@@ -2,22 +2,24 @@
 
 # paths
 #CACHE_DIR=$HOME/.cache/$APP_NAME
+#CACHE_AGE=10
 #COVER_CUR=$CACHE_DIR/current.jpg
 #STOCK_ART=$CACHE_DIR/stock.jpg
 
 # notifications
-#POPUP_ENABLE=false
+#POPUP_ENABLE=true
 #POPUP_TITLE=" Now Playing"
-#POPUP_TIME=30
+#POPUP_TIME=10
 #POPUP_LEVEL=low
 
 # cava
-#CAVA_ENABLE=true
+#CAVA_ENABLE=false
 #CAVA_CFG=$HOME/.config/cava/config
 #CAVA_COLORS=(c23621 25bc24 adad27 492ee1 d338d3 33bbc8 fc391f 31e722 eaec23 5833ff f935f8 14f0f0)
 
 # cover
-#COVER_ENABLE=true
+#COVER_ENABLE=false
 #COVER_SIZE=200x200
 #COVER_POSITION=+1680+820
+#COVER_TIME=30
 
