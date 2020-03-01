@@ -11,15 +11,15 @@ CACHE_DIR=$HOME/.cache/$APP_NAME
 COVER_CUR=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
 
-POPUP_ENABLED=true
+POPUP_ENABLE=true
 POPUP_TITLE=" Now Playing"
 POPUP_TIME=30
 POPUP_LEVEL=low
 
-CAVA_ENABLED=false
+CAVA_ENABLE=false
 CAVA_CFG=$HOME/.config/cava/config
 
-COVER_ENABLED=false
+COVER_ENABLE=false
 COVER_SIZE=200x200
 COVER_POSITION=+1680+820
 
@@ -41,7 +41,7 @@ fi
 function main() {
 
   local cur_song
-  local RUN_ONCE=false
+  local RUN_ONCE=true
 
   while true
   do
@@ -58,10 +58,9 @@ function main() {
 
     fetch_cover $cur_song
 
-    [[ $POPUP_ENABLED == true ]] && show_popup $cur_song
-    [[ $CAVA_ENABLED == true ]] && cava_color
-    [[ $COVER_ENABLED == true ]] && cover_mode
-    [[ $TEST_ENABLED == true ]] && test_fun
+    [[ $POPUP_ENABLE == true ]] && show_popup $cur_song
+    [[ $CAVA_ENABLE == true ]] && cava_color
+    [[ $COVER_ENABLE == true ]] && show_cover
 
     while true
     do
@@ -69,7 +68,7 @@ function main() {
       mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
     done
 
-    RUN_ONCE=true
+    RUN_ONCE=false
 
   done
 
@@ -235,9 +234,9 @@ function _color_dist() {
 function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 
 # show floating cover art
-function cover_mode() {
+function show_cover() {
 
-  if [[ $RUN_ONCE == false ]]; then
+  if [[ $RUN_ONCE == true ]]; then
     ( feh -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
     echo $! >$CACHE_DIR/feh.pid
   fi
@@ -293,7 +292,7 @@ do
       RC_FILE=$2
       shift 2;;
     -p | --popup)
-      POPUP_ENABLED=true
+      POPUP_ENABLE=true
       shift;;
     -t | --time)
       POPUP_TIME=$2
@@ -302,10 +301,10 @@ do
       POPUP_LEVEL=$2
       shift 2;;
     -v | --cava)
-      CAVA_ENABLED=true
+      CAVA_ENABLE=true
       shift;;
     -c | --cover)
-      COVER_ENABLED=true
+      COVER_ENABLE=true
       shift;;
     -D | --debug)
       DEBUG=1
@@ -320,14 +319,14 @@ done
 [[ ! -f $STOCK_ART ]] && make_stock_art
 
 # save original cava color
-if [[ $CAVA_ENABLED == true ]]
+if [[ $CAVA_ENABLE == true ]]
 then
   CAVA_ORIG=$(_cava_cur_color)
   [[ $DEBUG -gt 0 ]] && echo "Original CAVA color: $CAVA_ORIG"
 fi
 
 # set trap for feh
-if [[ $COVER_ENABLED == true ]]
+if [[ $COVER_ENABLE == true ]]
 then
   trap feh_exit EXIT
 fi
