@@ -85,6 +85,12 @@ function get_cover_art() {
 
 }
 
+#
+function _get_song_path() {
+
+
+}
+
 # fetch cover art
 function fetch_cover() {
 
@@ -262,19 +268,17 @@ function purge_cache() {
 function clean_run() {
 
   local pid=$$
-  local pidfile=$CACHE_DIR/$APP_NAME.pid
-  local oldpid
+  local pidnew=$CACHE_DIR/$APP_NAME.pid
+  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
+  local readpid
 
-  if [ -f $pidfile ]
-  then
-    oldpid=$(head -n 1 $pidfile)
-    if [[ ! $pid == $oldpid ]]
-    then
-      kill -9 $oldpid 2>/dev/null
-    fi
-  fi
+  for pidfile in $(ls $CACHE_DIR/*.pid | col)
+  do
+    readpid=$(cat $pidfile)
+    [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
+  done
 
-  echo $pid > $pidfile
+  echo $pid > $pidnew
 
 }
 
