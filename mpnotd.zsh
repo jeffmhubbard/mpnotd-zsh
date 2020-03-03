@@ -34,6 +34,12 @@ function main() {
   while true
   do
 
+    while true
+    do
+      [[ $DEBUG -gt 0 ]] && echo "Waiting for song change..."
+      mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
+    done
+
     cur_song=$(mpc current)
 
     if [ -z $cur_song ]
@@ -49,12 +55,6 @@ function main() {
     [[ $POPUP_ENABLE == true ]] && show_popup $cur_song
     [[ $CAVA_ENABLE == true ]] && cava_color
     [[ $COVER_ENABLE == true ]] && show_cover
-
-    while true
-    do
-      [[ $DEBUG -gt 0 ]] && echo "Waiting..."
-      mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
-    done
 
     RUN_ONCE=false
 
@@ -118,10 +118,10 @@ function show_popup() {
   local cur_song=$1
   local title=$POPUP_TITLE
   local body
-  local icon=$COVER_ART
+  local icon=$COVER_CUR
   local time=$POPUP_TIME
   local urgency=$POPUP_LEVEL
-  local fields
+  local -a fields
 
   fields=( ${(s: - :)cur_song} )
   body="$fields[2]\n"
@@ -233,11 +233,12 @@ function show_cover() {
 
   [[ -n $COVER_TIME ]] && local RUN_ONCE=true
 
-  if [[ $RUN_ONCE == true ]]; then
+  if [[ $RUN_ONCE == true ]]
+  then
     [[ $DEBUG -gt 0 ]] && echo "Displaying cover art..."
     ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
     echo $! >$CACHE_DIR/cover.pid
-    [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; ) &|
+    [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; )&|
   fi
 
 }
@@ -280,14 +281,16 @@ function clean_run() {
 # help message
 function usage() {
 
-  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-c]"
+  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
   echo
   echo "optional:"
   echo "  -h, --help        show this help message and exit"
-  echo "  --config          specify path to config file"
+  echo "  -C, --config      specify path to config file"
   echo "  -t, --time        time (in seconds) to display popup"
   echo "  -u, --urgency     popup urgency (low, normal, critical)"
-  echo "  -c, --cava        enable changing CAVA color"
+  echo "  -v, --cava        enable changing CAVA color"
+  echo "  -c, --cover       enable cover mode"
+  echo "  -D, --debug       verbose output"
   echo
 
 }

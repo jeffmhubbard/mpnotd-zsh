@@ -74,3 +74,9 @@ COVER_TIME=10
 ```
 
 ### Notes
+
+For floating cover art with i3
+```ini
+for_window [class="mpnotd"] floating enable
+no_focus [class="mpnotd"]
+```
