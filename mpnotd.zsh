@@ -1,9 +1,13 @@
 #!/usr/bin/env zsh
+#
+# mpnotd-zsh
+#
+# watch MPD for song change and display notification
+# requires: mpc curl convert jq sed notify-send cava md5sum
+#
 
-# song info notifications for mpd
-# extbin: mpc curl convert jq sed notify-send cava md5sum
-
-APP_NAME="mpnotd"
+APP_NAME=mpnotd
+APP_VER=0.1.5
 
 # defaults
 RC_FILE=$HOME/.config/$APP_NAME/config
@@ -12,28 +16,31 @@ CACHE_AGE=10
 COVER_CUR=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
 
-
+# popup
 POPUP_ENABLE=true
 POPUP_TITLE=" Now Playing"
 POPUP_TIME=10
 POPUP_LEVEL=low
 
+# cava
 CAVA_ENABLE=false
 CAVA_CFG=$HOME/.config/cava/config
 
+# cover
 COVER_ENABLE=false
 COVER_SIZE=200x200
-COVER_POSITION=+1680+820
+COVER_POSITION=+20+20
+
+###########################################################
+# core
 
 # main
 function main() {
-
   local cur_song
   local RUN_ONCE=true
 
   while true
   do
-
     while true
     do
       [[ $DEBUG -gt 0 ]] && echo "Waiting for song change..."
@@ -52,19 +59,19 @@ function main() {
 
     get_cover_art $cur_song
 
+    # core
     [[ $POPUP_ENABLE == true ]] && show_popup $cur_song
+
+    # extras
     [[ $CAVA_ENABLE == true ]] && cava_color
     [[ $COVER_ENABLE == true ]] && show_cover
 
     RUN_ONCE=false
-
   done
-
 }
 
 # get cover art
 function get_cover_art() {
-
   local song=$1
 
   COVER_ART=$CACHE_DIR/cover-$(_get_hash $song).jpg
@@ -82,12 +89,6 @@ function get_cover_art() {
   else
     cp $STOCK_ART $COVER_CUR 2>/dev/null
   fi
-
-}
-
-#
-function _get_song_path() {
-
 
 }
 
@@ -113,14 +114,49 @@ function fetch_cover() {
 function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
 
 # create stock image to use when cover art isn't found
-function make_stock_art() {
-  magick -size 64x64 gradient: $STOCK_ART
-  magick -size 64x64 gradient:blue-black $STOCK_ART
+function make_stock_art() { magick -size 64x64 gradient:blue-black $STOCK_ART }
+
+# kill running instances
+function clean_run() {
+  local pid=$$
+  local pidnew=$CACHE_DIR/$APP_NAME.pid
+  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
+  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
+  local readpid
+
+  if [[ $#pidlist -gt 0 ]]
+  then
+    for pidfile in $pidlist
+    do
+      readpid=$(cat $pidfile)
+      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
+    done
+  fi
+
+  echo $pid > $pidnew
 }
+
+# help message
+function usage() {
+  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
+  echo
+  echo "optional:"
+  echo "  -h, --help        show this help message and exit"
+  echo "  -C, --config      specify path to config file"
+  echo "  -p, --popup       enable popup (on by default)"
+  echo "  -t, --time        time (in seconds) to display popup"
+  echo "  -u, --urgency     popup urgency (low, normal, critical)"
+  echo "  -v, --cava        enable changing cava color"
+  echo "  -c, --cover       enable cover mode"
+  echo "  -D, --debug       verbose output"
+  echo
+}
+
+###########################################################
+# popup
 
 # show notification
 function show_popup() {
-
   local cur_song=$1
   local title=$POPUP_TITLE
   local body
@@ -145,12 +181,13 @@ function show_popup() {
     [[ $DEBUG -gt 0 ]] && echo "Notification failed!"
     return 1
   fi
-
 }
+
+###########################################################
+# cava
 
 # set cava foreground color
 function cava_color() {
-
   if [ -f $CAVA_CFG ]
   then
     dcolor=$(_get_dominant_color $COVER_CUR)
@@ -176,21 +213,17 @@ function cava_color() {
   else
     [[ $DEBUG -gt 0 ]] && echo "Could not locate CAVA config: $CAVA_CFG"
   fi
-
 }
 
 # get cava foreground color
 function _cava_cur_color() {
-
   grep foreground $CAVA_CFG | \
     awk -F " = " '{print $2}' | \
     tr -d "'"
-
 }
 
 # get dominant hex color from image
 function _get_dominant_color() {
-
   local infile=$1
   local histogram
   local color
@@ -201,12 +234,10 @@ function _get_dominant_color() {
     color=($(echo $histogram | sort -n | tail -n 1))
     echo ${color[3]:gs/#/}
   fi
-
 }
 
 # return color from $CAVA_COLORS that is closest to $incolor
 function _get_palette_match() {
-
     local incolor=$1
     local pcolor
 
@@ -214,7 +245,6 @@ function _get_palette_match() {
     do
       echo "$(_color_dist $incolor $pcolor) $pcolor"
     done | sort -g | head -n 1 | cut -d ' ' -f 2
-
 }
 
 # calculate distance between two hex colors
@@ -234,9 +264,11 @@ function _color_dist() {
 # convert hex color (without #) to rgb (128 128 128)
 function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 
+###########################################################
+# cover
+
 # show floating cover art
 function show_cover() {
-
   [[ -n $COVER_TIME ]] && local RUN_ONCE=true
 
   if [[ $RUN_ONCE == true ]]
@@ -246,7 +278,6 @@ function show_cover() {
     echo $! >$CACHE_DIR/cover.pid
     [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; )&|
   fi
-
 }
 
 # make feh exit with script
@@ -262,42 +293,8 @@ function purge_cache() {
   fi
 }
 
-# kill running instances
-function clean_run() {
-  local pid=$$
-  local pidnew=$CACHE_DIR/$APP_NAME.pid
-  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
-  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
-  local readpid
-
-  if [[ $#pidlist -gt 0 ]]
-  then
-    for pidfile in $pidlist
-    do
-      readpid=$(cat $pidfile)
-      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
-    done
-  fi
-
-  echo $pid > $pidnew
-}
-
-# help message
-function usage() {
-
-  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
-  echo
-  echo "optional:"
-  echo "  -h, --help        show this help message and exit"
-  echo "  -C, --config      specify path to config file"
-  echo "  -t, --time        time (in seconds) to display popup"
-  echo "  -u, --urgency     popup urgency (low, normal, critical)"
-  echo "  -v, --cava        enable changing CAVA color"
-  echo "  -c, --cover       enable cover mode"
-  echo "  -D, --debug       verbose output"
-  echo
-
-}
+###########################################################
+# init main
 
 # load config
 if [ -f $RC_FILE ]
@@ -312,6 +309,12 @@ then
   [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
   mkdir -p "$CACHE_DIR"
 fi
+
+# purge old cover art
+[[ -d $CACHE_DIR ]] && purge_cache
+
+# check for stock image
+[[ ! -f $STOCK_ART ]] && make_stock_art
 
 # parse arguments
 for arg in $@
@@ -345,11 +348,8 @@ do
   esac
 done
 
-# check for stock image
-[[ ! -f $STOCK_ART ]] && make_stock_art
-
-# purge old cover art
-[[ -d $CACHE_DIR ]] && purge_cache
+###########################################################
+# init extras
 
 # save original cava color
 if [[ $CAVA_ENABLE == true ]]
@@ -364,10 +364,10 @@ then
   trap feh_exit EXIT
 fi
 
-# kill others
-clean_run
+###########################################################
+# main
 
-# go
+clean_run
 main
 
 exit 0
