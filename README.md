@@ -1,5 +1,7 @@
 # MPD Notification Daemon (Zsh)  
   
+![Demo Animation](../assets/demo.gif?raw=true)
+
 Watches MPD for song change and does stuff.  
   
 ### Features
