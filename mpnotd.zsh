@@ -254,32 +254,32 @@ function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
 # purge cached covert art
 function purge_cache() {
-
   local pattern="cover-*.jpg"
 
   if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_AGE -exec rm -f {} \;
   then
     [[ DEBUG -gt 0 ]] && echo "Purged covers older than: $CACHE_AGE days"
   fi
-
 }
 
-# kill running instance
+# kill running instances
 function clean_run() {
-
   local pid=$$
   local pidnew=$CACHE_DIR/$APP_NAME.pid
+  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
   local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
   local readpid
 
-  for pidfile in $(ls $CACHE_DIR/*.pid | col)
-  do
-    readpid=$(cat $pidfile)
-    [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
-  done
+  if [[ $#pidlist -gt 0 ]]
+  then
+    for pidfile in $pidlist
+    do
+      readpid=$(cat $pidfile)
+      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
+    done
+  fi
 
   echo $pid > $pidnew
-
 }
 
 # help message
