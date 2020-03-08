@@ -7,13 +7,13 @@
 #
 
 APP_NAME=mpnotd
-APP_VER=0.1.5
 
 # defaults
 RC_FILE=$HOME/.config/$APP_NAME/config
 CACHE_DIR=$HOME/.cache/$APP_NAME
 CACHE_AGE=10
-COVER_CUR=$CACHE_DIR/current.jpg
+MUSIC_DIR=$HOME/Music
+COVER_ART=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
 
 # popup
@@ -21,6 +21,9 @@ POPUP_ENABLE=true
 POPUP_TITLE=" Now Playing"
 POPUP_TIME=10
 POPUP_LEVEL=low
+POPUP_PFX_TITLE=""
+POPUP_PFX_ARTIST="By "
+POPUP_PFX_ALBUM="From "
 
 # cava
 CAVA_ENABLE=false
@@ -36,87 +39,158 @@ COVER_POSITION=+20+20
 
 # main
 function main() {
-  local cur_song
   local RUN_ONCE=true
+  local cache_enc
 
   while true
   do
+
+    # get current song info
+    if get_current_song
+    then
+
+      # create cache path
+      cache_enc=$(_get_hash "$CURRENT_ARTIST - $CURRENT_ALBUM")
+      CURRENT_COVER=$CACHE_DIR/cover-$cache_enc.jpg
+      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: $CURRENT_COVER"
+
+      # get cover
+      get_current_cover
+
+      # actions
+      [[ $DEBUG -gt 0 ]] && echo "Core: Actions..."
+      [[ $POPUP_ENABLE == true ]] && show_popup
+      [[ $CAVA_ENABLE == true ]] && cava_color
+      [[ $COVER_ENABLE == true ]] && show_cover
+
+    fi
+
+    RUN_ONCE=false
+
+    # now we wait
     while true
     do
-      [[ $DEBUG -gt 0 ]] && echo "Waiting for song change..."
+      [[ $DEBUG -gt 0 ]] && echo "Core: Waiting..."
       mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
     done
 
-    cur_song=$(mpc current)
-
-    if [ -z $cur_song ]
-    then
-      [[ $DEBUG -gt 0 ]] && echo "Could not get current song info..."
-      continue
-    fi
-
-    [[ $DEBUG -gt 0 ]] && echo "Playing: $cur_song"
-
-    get_cover_art $cur_song
-
-    # core
-    [[ $POPUP_ENABLE == true ]] && show_popup $cur_song
-
-    # extras
-    [[ $CAVA_ENABLE == true ]] && cava_color
-    [[ $COVER_ENABLE == true ]] && show_cover
-
-    RUN_ONCE=false
   done
 }
 
-# get cover art
-function get_cover_art() {
-  local song=$1
+# get current song
+function get_current_song() {
+  local song
 
-  COVER_ART=$CACHE_DIR/cover-$(_get_hash $song).jpg
+  song=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%]")}")
 
-  if [ -f $COVER_ART ]
+  CURRENT_FILE=$song[1]
+  CURRENT_TITLE=$song[2]
+  CURRENT_ARTIST=$song[3]
+  CURRENT_ALBUM=$song[4]
+
+  if [[ -z $CURRENT_TITLE ]]
   then
-    [[ $DEBUG -gt 0 ]] && echo "Using cached cover: $COVER_ART"
-  else
-    fetch_cover $song
+    return 1
   fi
 
-  if [ -f $COVER_ART ]
-  then
-    cp $COVER_ART $COVER_CUR 2>/dev/null
-  else
-    cp $STOCK_ART $COVER_CUR 2>/dev/null
-  fi
+  [[ $DEBUG -gt 0 ]] && \
+    echo "Core: Now Playing..."; \
+    echo "Core: Title: $CURRENT_TITLE"; \
+    echo "Core: Artist: $CURRENT_ARTIST"; \
+    echo "Core: Album: $CURRENT_ALBUM"; \
+    echo "Core: File: $CURRENT_FILE"
 
+  return 0
 }
 
-# fetch cover art
-function fetch_cover() {
-
-  local song=$1
-  local search_url
-  local cover_url
-
-  search_url="http://api.deezer.com/search/autocomplete?q=$song" && search_url=${search_url//' '/'%20'}
-  [[ $DEBUG -gt 0 ]] && echo "Search URL: $search_url"
-
-  cover_url=$(curl -s "$search_url" | jq -r '.tracks.data[0].album.cover_medium')
-  [[ $DEBUG -gt 0 ]] && echo "Cover URL: $cover_url"
-
-  curl -o $COVER_ART -s $cover_url
-  [[ $DEBUG -gt 0 ]] && echo "File path: $COVER_ART"
-
-}
-
-# return md5 hash from string
+# simple hash to generate cache filenames
 function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
+
+# try to find cover locally or online
+# otherwise use stock image
+function get_current_cover() {
+  local searchpath
+
+  if [[ ! -f $CURRENT_COVER ]]
+  then
+
+    # if we find a URL, just make up local path
+    if [[ $CURRENT_FILE == http* ]]
+    then
+      searchpath=$MUSIC_DIR/$CURRENT_ARTIST/$CURRENT_ALBUM
+    else
+      searchpath=$MUSIC_DIR/$CURRENT_FILE:t
+    fi
+
+    # if we don't find locally, search deezer
+    if ! find_local_image $searchpath
+    then
+      find_deezer_image
+    fi
+  fi
+
+  # copy image to current.jpg
+  if [[ -f $CURRENT_COVER ]]
+  then
+    cp $CURRENT_COVER $COVER_ART
+  else
+    cp $STOCK_ART $COVER_ART
+  fi
+
+  return 0
+}
+
+# attempt to locate cover in local filesystem
+function find_local_image() {
+  local filepath=$1
+  local common=("cover.jpg" "folder.jpg" "albumart.jpg")
+
+  [[ $DEBUG -gt 0 ]] && echo "Core: Searching: $filepath"
+
+  if [[ -f $filepath ]]
+  then
+    matches=(${(0)"$(find $filepath:h -type f -name '*.jpg')"})
+    for artwork in $matches
+    do
+      if [[ ${common[(ie)$artwork:t]} -le ${#common} ]]
+      then
+        cp $artwork $CURRENT_COVER
+        [[ $DEBUG -gt 0 ]] && echo "Core: Found cover!"
+        return 0
+      fi
+    done
+  fi
+
+  [[ $DEBUG -gt 0 ]] && echo "Core: No cover found!"
+  return 1
+}
+
+# attempt to locate cover on deezer
+function find_deezer_image() {
+  local result
+
+  [[ $DEBUG -gt 0 ]] && echo "Core: Searching online!"
+
+  result=$(curl -s -G "http://api.deezer.com/search" \
+      --data-urlencode "q=artist:\"$CURRENT_ARTIST\" album:\"$CURRENT_ALBUM\"" | \
+      jq -r '.data[0].album.cover_medium')
+
+  [[ $DEBUG -gt 0 ]] && echo "Core: Cover URL: $result"
+  if curl -s $result -o $CURRENT_COVER
+  then
+    [[ $DEBUG -gt 0 ]] && echo "Core: Got cover!"
+    return 0
+  fi
+
+  [[ $DEBUG -gt 0 ]] && echo "Core: No cover found!"
+  return 1
+}
 
 # create stock image to use when cover art isn't found
 function make_stock_art() { magick -size 64x64 gradient:blue-black $STOCK_ART }
 
-# kill running instances
+# look for pid files in cache directory
+# if processes still running, kill them
 function clean_run() {
   local pid=$$
   local pidnew=$CACHE_DIR/$APP_NAME.pid
@@ -155,32 +229,28 @@ function usage() {
 ###########################################################
 # popup
 
-# show notification
+# display notification
 function show_popup() {
-  local cur_song=$1
+  local icon=$COVER_ART
   local title=$POPUP_TITLE
-  local body
-  local icon=$COVER_CUR
   local time=$POPUP_TIME
   local urgency=$POPUP_LEVEL
-  local -a fields
+  local body
 
-  fields=( ${(s: - :)cur_song} )
-  body="$fields[2]\n"
-  body+="By $fields[1]"
-  if [ $#fields -gt 2 ]
-  then
-    body+="\nFrom $fields[3]"
-  fi
+  body="$POPUP_PFX_TITLE$CURRENT_TITLE\n"
+  body+="$POPUP_PFX_ARTIST$CURRENT_ARTIST\n"
+  body+="$POPUP_PFX_ALBUM$CURRENT_ALBUM"
 
   ((time = $time * 1000))
 
-  [[ $DEBUG -gt 0 ]] && echo "Sending notification..."
+  [[ $DEBUG -gt 0 ]] && echo "Popup: Sending now..."
   if ! notify-send -a $APP_NAME $title $body -i $icon -t $time -u $urgency
   then
-    [[ $DEBUG -gt 0 ]] && echo "Notification failed!"
+    [[ $DEBUG -gt 0 ]] && echo "Popup: Sending failed!"
     return 1
   fi
+
+  return 0
 }
 
 ###########################################################
@@ -190,28 +260,28 @@ function show_popup() {
 function cava_color() {
   if [ -f $CAVA_CFG ]
   then
-    dcolor=$(_get_dominant_color $COVER_CUR)
-    [[ $DEBUG -gt 0 ]] && echo "Got dominant color '$dcolor'"
+    dcolor=$(_get_dominant_color $COVER_ART)
+    [[ $DEBUG -gt 0 ]] && echo "Cava: Got dominant '$dcolor'"
 
     if [ -z $dcolor ]
     then
       dcolor=$CAVA_ORIG
-      [[ $DEBUG -gt 0 ]] && echo "Bad color, using original: $CAVA_ORIG"
+      [[ $DEBUG -gt 0 ]] && echo "Cava: Bad color, using original: $CAVA_ORIG"
     fi
 
     if (( ${+CAVA_COLORS} ))
     then
       pcolor=$(_get_palette_match $dcolor)
-      [[ $DEBUG -gt 0 ]] && echo "Got palette color '$pcolor'"
+      [[ $DEBUG -gt 0 ]] && echo "Cava: Got palette '$pcolor'"
     fi
 
     sed -i "s/^foreground.*$/foreground = '#${pcolor:-$dcolor}'/g" $CAVA_CFG
-    [[ $DEBUG -gt 0 ]] && echo "Set CAVA color to '${pcolor:-$dcolor}'"
+    [[ $DEBUG -gt 0 ]] && echo "Cava: Set color to '${pcolor:-$dcolor}'"
 
-    [[ $DEBUG -gt 0 ]] && echo "Restarting CAVA..."
+    [[ $DEBUG -gt 0 ]] && echo "Cava: Restarting..."
     pkill -USR2 cava &
   else
-    [[ $DEBUG -gt 0 ]] && echo "Could not locate CAVA config: $CAVA_CFG"
+    [[ $DEBUG -gt 0 ]] && echo "Cava: Could not locate config: $CAVA_CFG"
   fi
 }
 
@@ -248,6 +318,7 @@ function _get_palette_match() {
 }
 
 # calculate distance between two hex colors
+# using Euclidean formula, ymmv
 # https://en.wikipedia.org/wiki/Color_difference
 function _color_dist() {
     local color1=($(_hex2rgb $1))
@@ -273,10 +344,10 @@ function show_cover() {
 
   if [[ $RUN_ONCE == true ]]
   then
-    [[ $DEBUG -gt 0 ]] && echo "Displaying cover art..."
-    ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_CUR )&|
+    ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_ART )&|
     echo $! >$CACHE_DIR/cover.pid
     [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; )&|
+    [[ $DEBUG -gt 0 ]] && echo "Cover: Started feh..."
   fi
 }
 
@@ -289,7 +360,7 @@ function purge_cache() {
 
   if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_AGE -exec rm -f {} \;
   then
-    [[ DEBUG -gt 0 ]] && echo "Purged covers older than: $CACHE_AGE days"
+    [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_AGE days"
   fi
 }
 
@@ -299,15 +370,15 @@ function purge_cache() {
 # load config
 if [ -f $RC_FILE ]
 then
-  [[ $DEBUG -gt 0 ]] && echo "Loading config: $RC_FILE"
   source $RC_FILE
+  [[ $DEBUG -gt 0 ]] && echo "Core: Loaded config: $RC_FILE"
 fi
 
 # create cache directory
 if [ ! -d $CACHE_DIR ]
 then
-  [[ $DEBUG -gt 0 ]] && echo "Creating cache: $CACHE_DIR"
   mkdir -p "$CACHE_DIR"
+  [[ $DEBUG -gt 0 ]] && echo "Core: Created cache: $CACHE_DIR"
 fi
 
 # purge old cover art
@@ -355,7 +426,7 @@ done
 if [[ $CAVA_ENABLE == true ]]
 then
   CAVA_ORIG=$(_cava_cur_color)
-  [[ $DEBUG -gt 0 ]] && echo "Original CAVA color: $CAVA_ORIG"
+  [[ $DEBUG -gt 0 ]] && echo "Cava: Original color: $CAVA_ORIG"
 fi
 
 # set trap for feh
@@ -368,6 +439,7 @@ fi
 # main
 
 clean_run
+
 main
 
 exit 0
