@@ -11,7 +11,7 @@ APP_NAME=mpnotd
 # defaults
 RC_FILE=$HOME/.config/$APP_NAME/config
 CACHE_DIR=$HOME/.cache/$APP_NAME
-CACHE_AGE=10
+CACHE_DAYS=10
 MUSIC_DIR=$HOME/Music
 COVER_ART=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
@@ -44,6 +44,7 @@ function main() {
 
   while true
   do
+    [[ $DEBUG -gt 0 ]] && { printf -- '-%.0s' $(seq 50); echo "" }
 
     # get current song info
     if get_current_song
@@ -358,9 +359,9 @@ function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 function purge_cache() {
   local pattern="cover-*.jpg"
 
-  if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_AGE -exec rm -f {} \;
+  if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_DAYS -exec rm -f {} \;
   then
-    [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_AGE days"
+    [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_DAYS days"
   fi
 }
 
