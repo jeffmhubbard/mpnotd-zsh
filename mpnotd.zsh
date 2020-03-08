@@ -50,9 +50,9 @@ function main() {
     then
 
       # create cache path
-      cache_enc=$(_get_hash "$CURRENT_ARTIST - $CURRENT_ALBUM")
-      CURRENT_COVER=$CACHE_DIR/cover-$cache_enc.jpg
-      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: $CURRENT_COVER"
+      cache_enc=$(_get_hash "$SONG_ARTIST - $SONG_ALBUM")
+      SONG_COVER=$CACHE_DIR/cover-$cache_enc.jpg
+      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: $SONG_COVER"
 
       # get cover
       get_current_cover
@@ -83,22 +83,22 @@ function get_current_song() {
 
   song=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%]")}")
 
-  CURRENT_FILE=$song[1]
-  CURRENT_TITLE=$song[2]
-  CURRENT_ARTIST=$song[3]
-  CURRENT_ALBUM=$song[4]
+  SONG_FILE=$song[1]
+  SONG_TITLE=$song[2]
+  SONG_ARTIST=$song[3]
+  SONG_ALBUM=$song[4]
 
-  if [[ -z $CURRENT_TITLE ]]
+  if [[ -z $SONG_TITLE ]]
   then
     return 1
   fi
 
   [[ $DEBUG -gt 0 ]] && \
     echo "Core: Now Playing..."; \
-    echo "Core: Title: $CURRENT_TITLE"; \
-    echo "Core: Artist: $CURRENT_ARTIST"; \
-    echo "Core: Album: $CURRENT_ALBUM"; \
-    echo "Core: File: $CURRENT_FILE"
+    echo "Core: Title: $SONG_TITLE"; \
+    echo "Core: Artist: $SONG_ARTIST"; \
+    echo "Core: Album: $SONG_ALBUM"; \
+    echo "Core: File: $SONG_FILE"
 
   return 0
 }
@@ -111,15 +111,15 @@ function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
 function get_current_cover() {
   local searchpath
 
-  if [[ ! -f $CURRENT_COVER ]]
+  if [[ ! -f $SONG_COVER ]]
   then
 
     # if we find a URL, just make up local path
-    if [[ $CURRENT_FILE == http* ]]
+    if [[ $SONG_FILE == http* ]]
     then
-      searchpath=$MUSIC_DIR/$CURRENT_ARTIST/$CURRENT_ALBUM
+      searchpath=$MUSIC_DIR/$SONG_ARTIST/$SONG_ALBUM
     else
-      searchpath=$MUSIC_DIR/$CURRENT_FILE:t
+      searchpath=$MUSIC_DIR/$SONG_FILE:t
     fi
 
     # if we don't find locally, search deezer
@@ -130,9 +130,9 @@ function get_current_cover() {
   fi
 
   # copy image to current.jpg
-  if [[ -f $CURRENT_COVER ]]
+  if [[ -f $SONG_COVER ]]
   then
-    cp $CURRENT_COVER $COVER_ART
+    cp $SONG_COVER $COVER_ART
   else
     cp $STOCK_ART $COVER_ART
   fi
@@ -154,7 +154,7 @@ function find_local_image() {
     do
       if [[ ${common[(ie)$artwork:t]} -le ${#common} ]]
       then
-        cp $artwork $CURRENT_COVER
+        cp $artwork $SONG_COVER
         [[ $DEBUG -gt 0 ]] && echo "Core: Found cover!"
         return 0
       fi
@@ -172,11 +172,11 @@ function find_deezer_image() {
   [[ $DEBUG -gt 0 ]] && echo "Core: Searching online!"
 
   result=$(curl -s -G "http://api.deezer.com/search" \
-      --data-urlencode "q=artist:\"$CURRENT_ARTIST\" album:\"$CURRENT_ALBUM\"" | \
+      --data-urlencode "q=artist:\"$SONG_ARTIST\" album:\"$SONG_ALBUM\"" | \
       jq -r '.data[0].album.cover_medium')
 
   [[ $DEBUG -gt 0 ]] && echo "Core: Cover URL: $result"
-  if curl -s $result -o $CURRENT_COVER
+  if curl -s $result -o $SONG_COVER
   then
     [[ $DEBUG -gt 0 ]] && echo "Core: Got cover!"
     return 0
@@ -237,9 +237,9 @@ function show_popup() {
   local urgency=$POPUP_LEVEL
   local body
 
-  body="$POPUP_PFX_TITLE$CURRENT_TITLE\n"
-  body+="$POPUP_PFX_ARTIST$CURRENT_ARTIST\n"
-  body+="$POPUP_PFX_ALBUM$CURRENT_ALBUM"
+  body="$POPUP_PFX_TITLE$SONG_TITLE\n"
+  body+="$POPUP_PFX_ARTIST$SONG_ARTIST\n"
+  body+="$POPUP_PFX_ALBUM$SONG_ALBUM"
 
   ((time = $time * 1000))
 
