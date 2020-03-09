@@ -64,6 +64,9 @@ function main() {
       [[ $CAVA_ENABLE == true ]] && cava_color
       [[ $COVER_ENABLE == true ]] && show_cover
 
+    else
+      [[ $DEBUG -gt 0 ]] && echo "Core: Unable to get song info..."
+      cp $STOCK_ART $COVER_ART
     fi
 
     RUN_ONCE=false
@@ -94,12 +97,12 @@ function get_current_song() {
     return 1
   fi
 
-  [[ $DEBUG -gt 0 ]] && \
+  [[ $DEBUG -gt 0 ]] && { \
     echo "Core: Now Playing..."; \
     echo "Core: Title: $SONG_TITLE"; \
     echo "Core: Artist: $SONG_ARTIST"; \
     echo "Core: Album: $SONG_ALBUM"; \
-    echo "Core: File: $SONG_FILE"
+    echo "Core: File: $SONG_FILE"; }
 
   return 0
 }
@@ -128,6 +131,8 @@ function get_current_cover() {
     then
       find_deezer_image
     fi
+  else
+    [[ $DEBUG -gt 0 ]] && echo "Core: Cover exists: $SONG_COVER"
   fi
 
   # copy image to current.jpg
