@@ -2,26 +2,24 @@
   
 ![Demo Animation](../assets/demo.gif?raw=true)
 
-Watches MPD for song change and does stuff.  
+Watches MPD for song change and takes action
   
 ### Features
 * Display song info and cover in notification
 * Change [cava](https://github.com/karlstav/cava) fg color based on cover art
-* Display cover art on desktop
+* Display cover art on desktop with [feh](https://feh.finalrewind.org/)
   
 ### Requirements  
-zsh  
-mpc  
-libnotify  
-curl  
-jq  
-sed  
-imagemagick  
-cava  
-feh  
+zsh
+mpc
+notify-send
+curl
+jq
+imagemagick
+cava (optional)
+feh (optional)
   
 ### Installation  
-  
 Manual:  
 ```sh
 git clone https://github.com/jeffmhubbard/mpnotd-zsh
@@ -34,6 +32,7 @@ To start from terminal:
   
 ```sh
 -C, --config    specify path to config file
+-p, --popup     enable notifications (defaults on)
 -t, --time      time to display popup (in seconds)
 -u, --urgency   urgency level (low, normal, critical)
 -v, --cava      enable cava color
@@ -43,9 +42,11 @@ To start from terminal:
 ```
   
 ### Configuration  
-  
 ```sh
-# mpnotd config
+# ~/.config/mpnotd/config
+
+# number of days to cache cover art for
+CACHE_DAYS=10
 
 # set title of popup
 POPUP_TITLE=" Now Playing"
@@ -76,7 +77,6 @@ COVER_TIME=10
 ```
 
 ### Notes
-
 For floating cover art with i3
 ```ini
 for_window [class="mpnotd"] floating enable

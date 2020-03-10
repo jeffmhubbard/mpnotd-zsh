@@ -78,6 +78,8 @@ function main() {
       mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
     done
 
+    sleep 1
+
   done
 }
 
@@ -221,7 +223,6 @@ function usage() {
   echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
   echo
   echo "optional:"
-  echo "  -h, --help        show this help message and exit"
   echo "  -C, --config      specify path to config file"
   echo "  -p, --popup       enable popup (on by default)"
   echo "  -t, --time        time (in seconds) to display popup"
@@ -229,6 +230,7 @@ function usage() {
   echo "  -v, --cava        enable changing cava color"
   echo "  -c, --cover       enable cover mode"
   echo "  -D, --debug       verbose output"
+  echo "  -h, --help        show this help message and exit"
   echo
 }
 
