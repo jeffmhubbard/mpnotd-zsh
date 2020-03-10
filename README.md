@@ -5,20 +5,23 @@
 Watches MPD for song change and takes action
   
 ### Features
-* Display song info and cover in notification
-* Change [cava](https://github.com/karlstav/cava) fg color based on cover art
-* Display cover art on desktop with [feh](https://feh.finalrewind.org/)
+- Gathers detailed song info
+- Searches filesystem and online for cover art
+- Caches covers to reduce web traffic
+- Display song info and cover via [notify-send](https://gitlab.gnome.org/GNOME/libnotify)
+- Change [cava](https://github.com/karlstav/cava) color based on cover art
+- Display cover art on desktop with [feh](https://feh.finalrewind.org/)
   
 ### Requirements  
-zsh
-mpc
-notify-send
-curl
-jq
-imagemagick
-cava (optional)
-feh (optional)
-  
+zsh  
+mpc  
+curl  
+jq  
+imagemagick  
+notify-send (optional)  
+cava (optional)  
+feh (optional)  
+
 ### Installation  
 Manual:  
 ```sh
@@ -49,10 +52,13 @@ To start from terminal:
 CACHE_DAYS=10
 
 # set title of popup
-POPUP_TITLE=" Now Playing"
+POPUP_SUBJECT=" Now Playing"
+
+# (if set) format popup body
+POPUP_BODY="%title%\n%By %artist%\nFrom %album% (%date%)"
 
 # time to display popup (seconds)
-POPUP_TIME=30
+POPUP_DURATION=30
 
 # popup urgency (low, normal, critical)
 POPUP_LEVEL=low

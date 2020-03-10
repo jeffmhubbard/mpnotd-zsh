@@ -18,12 +18,9 @@ STOCK_ART=$CACHE_DIR/stock.jpg
 
 # popup
 POPUP_ENABLE=true
-POPUP_TITLE=" Now Playing"
-POPUP_TIME=10
+POPUP_SUBJECT=" Now Playing"
+POPUP_DURATION=10
 POPUP_LEVEL=low
-POPUP_PFX_TITLE=""
-POPUP_PFX_ARTIST="By "
-POPUP_PFX_ALBUM="From "
 
 # cava
 CAVA_ENABLE=false
@@ -46,14 +43,17 @@ function main() {
   do
     [[ $DEBUG -gt 0 ]] && { printf -- '-%.0s' $(seq 50); echo "" }
 
+    # clear previous song
+    unset SONG
+
     # get current song info
     if get_current_song
     then
 
       # create cache path
-      cache_enc=$(_get_hash "$SONG_ARTIST - $SONG_ALBUM")
-      SONG_COVER=$CACHE_DIR/cover-$cache_enc.jpg
-      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: $SONG_COVER"
+      cache_enc=$(_get_hash "${SONG[artist]} - ${SONG[album]}")
+      SONG[cover]=$CACHE_DIR/cover-$cache_enc.jpg
+      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: ${SONG[cover]}"
 
       # get cover
       get_current_cover
@@ -85,26 +85,32 @@ function main() {
 
 # get current song
 function get_current_song() {
-  local song
+  local current
+  typeset -Ag SONG
 
-  song=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%]")}")
+  current=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%\n%date%\n%genre%\n%track%\n%time%\n%position%]")}")
 
-  SONG_FILE=$song[1]
-  SONG_TITLE=$song[2]
-  SONG_ARTIST=$song[3]
-  SONG_ALBUM=$song[4]
+  SONG[url]=$current[1]
+  SONG[title]=$current[2]
+  SONG[artist]=$current[3]
+  SONG[album]=$current[4]
+  SONG[date]=$current[5]
+  SONG[genre]=$current[6]
+  SONG[track]=$current[7]
+  SONG[time]=$current[8]
+  SONG[position]=$current[9]
 
-  if [[ -z $SONG_TITLE ]]
+  if [[ -z ${SONG[title]} ]]
   then
     return 1
   fi
 
   [[ $DEBUG -gt 0 ]] && { \
-    echo "Core: Now Playing..."; \
-    echo "Core: Title: $SONG_TITLE"; \
-    echo "Core: Artist: $SONG_ARTIST"; \
-    echo "Core: Album: $SONG_ALBUM"; \
-    echo "Core: File: $SONG_FILE"; }
+    for key val in ${(kv)SONG}
+    do
+      echo "Core: Current: $key = $val"
+    done
+  }
 
   return 0
 }
@@ -117,15 +123,15 @@ function _get_hash() { echo -n $1 | md5sum | cut -d ' ' -f 1 }
 function get_current_cover() {
   local searchpath
 
-  if [[ ! -f $SONG_COVER ]]
+  if [[ ! -f ${SONG[cover]} ]]
   then
 
     # if we find a URL, just make up local path
-    if [[ $SONG_FILE == http* ]]
+    if [[ ${SONG[url]} == http* ]]
     then
-      searchpath=$MUSIC_DIR/$SONG_ARTIST/$SONG_ALBUM
+      searchpath=$MUSIC_DIR/${SONG[artist]}/${SONG[album]}
     else
-      searchpath=$MUSIC_DIR/$SONG_FILE:t
+      searchpath=$MUSIC_DIR/${SONG[url]:t}
     fi
 
     # if we don't find locally, search deezer
@@ -134,13 +140,13 @@ function get_current_cover() {
       find_deezer_image
     fi
   else
-    [[ $DEBUG -gt 0 ]] && echo "Core: Cover exists: $SONG_COVER"
+    [[ $DEBUG -gt 0 ]] && echo "Core: Cover exists: ${SONG[cover]}"
   fi
 
   # copy image to current.jpg
-  if [[ -f $SONG_COVER ]]
+  if [[ -f ${SONG[cover]} ]]
   then
-    cp $SONG_COVER $COVER_ART
+    cp ${SONG[cover]} $COVER_ART
   else
     cp $STOCK_ART $COVER_ART
   fi
@@ -162,7 +168,7 @@ function find_local_image() {
     do
       if [[ ${common[(ie)$artwork:t]} -le ${#common} ]]
       then
-        cp $artwork $SONG_COVER
+        cp $artwork ${SONG[cover]}
         [[ $DEBUG -gt 0 ]] && echo "Core: Found cover!"
         return 0
       fi
@@ -180,11 +186,11 @@ function find_deezer_image() {
   [[ $DEBUG -gt 0 ]] && echo "Core: Searching online!"
 
   result=$(curl -s -G "http://api.deezer.com/search" \
-      --data-urlencode "q=artist:\"$SONG_ARTIST\" album:\"$SONG_ALBUM\"" | \
+      --data-urlencode "q=artist:\"${SONG[artist]}\" album:\"${SONG[album]}\"" | \
       jq -r '.data[0].album.cover_medium')
 
   [[ $DEBUG -gt 0 ]] && echo "Core: Cover URL: $result"
-  if curl -s $result -o $SONG_COVER
+  if curl -s $result -o ${SONG[cover]}
   then
     [[ $DEBUG -gt 0 ]] && echo "Core: Got cover!"
     return 0
@@ -194,65 +200,41 @@ function find_deezer_image() {
   return 1
 }
 
-# create stock image to use when cover art isn't found
-function make_stock_art() { magick -size 64x64 gradient:blue-black $STOCK_ART }
-
-# look for pid files in cache directory
-# if processes still running, kill them
-function clean_run() {
-  local pid=$$
-  local pidnew=$CACHE_DIR/$APP_NAME.pid
-  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
-  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
-  local readpid
-
-  if [[ $#pidlist -gt 0 ]]
-  then
-    for pidfile in $pidlist
-    do
-      readpid=$(cat $pidfile)
-      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
-    done
-  fi
-
-  echo $pid > $pidnew
-}
-
-# help message
-function usage() {
-  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
-  echo
-  echo "optional:"
-  echo "  -C, --config      specify path to config file"
-  echo "  -p, --popup       enable popup (on by default)"
-  echo "  -t, --time        time (in seconds) to display popup"
-  echo "  -u, --urgency     popup urgency (low, normal, critical)"
-  echo "  -v, --cava        enable changing cava color"
-  echo "  -c, --cover       enable cover mode"
-  echo "  -D, --debug       verbose output"
-  echo "  -h, --help        show this help message and exit"
-  echo
-}
-
 ###########################################################
 # popup
+
+function init_popup() { return }
 
 # display notification
 function show_popup() {
   local icon=$COVER_ART
-  local title=$POPUP_TITLE
-  local time=$POPUP_TIME
+  local subject=$POPUP_SUBJECT
+  local duration=$POPUP_DURATION
   local urgency=$POPUP_LEVEL
   local body
 
-  body="$POPUP_PFX_TITLE$SONG_TITLE\n"
-  body+="$POPUP_PFX_ARTIST$SONG_ARTIST\n"
-  body+="$POPUP_PFX_ALBUM$SONG_ALBUM"
+  for key val in ${(kv)SONG}
+  do
+    local ${key}=$val
+  done
 
-  ((time = $time * 1000))
+  body="$title\nBy $artist\nFrom $album ($date)"
+
+  if (( ${+POPUP_BODY} ))
+  then
+    for tag in ${(k)SONG}
+    do
+      match="%${tag}%"
+      replace=$SONG[$tag]
+      POPUP_BODY=${POPUP_BODY/$match/$replace}
+    done
+  fi
+
+  ((duration = $duration * 1000))
 
   [[ $DEBUG -gt 0 ]] && echo "Popup: Sending now..."
-  if ! notify-send -a $APP_NAME $title $body -i $icon -t $time -u $urgency
+  if ! notify-send -a ${APP_NAME} ${subject} ${POPUP_BODY:-$body} \
+    -i ${icon} -t ${duration} -u ${urgency}
   then
     [[ $DEBUG -gt 0 ]] && echo "Popup: Sending failed!"
     return 1
@@ -263,6 +245,15 @@ function show_popup() {
 
 ###########################################################
 # cava
+
+function init_cava() {
+  # save original cava color
+  if [[ $CAVA_ENABLE == true ]]
+  then
+    CAVA_ORIG=$(_cava_cur_color)
+    [[ $DEBUG -gt 0 ]] && echo "Cava: Original color: $CAVA_ORIG"
+  fi
+}
 
 # set cava foreground color
 function cava_color() {
@@ -346,6 +337,14 @@ function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 ###########################################################
 # cover
 
+function init_cover() {
+  # set trap for feh
+  if [[ $COVER_ENABLE == true ]]
+  then
+    trap feh_exit EXIT
+  fi
+}
+
 # show floating cover art
 function show_cover() {
   [[ -n $COVER_TIME ]] && local RUN_ONCE=true
@@ -362,38 +361,93 @@ function show_cover() {
 # make feh exit with script
 function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
+###########################################################
+
+function load_config() {
+  if [ -f $RC_FILE ]
+  then
+    source $RC_FILE
+    [[ $DEBUG -gt 0 ]] && echo "Core: Loaded config: $RC_FILE"
+  fi
+}
+
+# create cache directory
+function check_cache() {
+  if [ ! -d $CACHE_DIR ]
+  then
+    mkdir -p "$CACHE_DIR"
+    [[ $DEBUG -gt 0 ]] && echo "Core: Created cache: $CACHE_DIR"
+  fi
+}
+
 # purge cached covert art
 function purge_cache() {
   local pattern="cover-*.jpg"
 
-  if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_DAYS -exec rm -f {} \;
+  if [ -d $CACHE_DIR ]
   then
-    [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_DAYS days"
+    if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_DAYS -exec rm -f {} \;
+    then
+      [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_DAYS days"
+    fi
   fi
+}
+
+# create stock image to use when cover art isn't found
+function make_stock_art() {
+  if [ ! -f $STOCK_ART ]
+  then
+    magick -size 64x64 gradient:blue-black $STOCK_ART
+    [[ DEBUG -gt 0 ]] && echo "Core: Created stock image: $STOCK_ART"
+  fi
+}
+
+# look for pid files in cache directory
+# if processes still running, kill them
+# then write new pid
+function clean_run() {
+  local pid=$$
+  local pidnew=$CACHE_DIR/$APP_NAME.pid
+  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
+  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
+  local readpid
+
+  if [[ $#pidlist -gt 0 ]]
+  then
+    for pidfile in $pidlist
+    do
+      readpid=$(cat $pidfile)
+      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
+    done
+  fi
+
+  [[ DEBUG -gt 0 ]] && echo "Core: Writing new PID: $pid"
+  echo $pid > $pidnew
+}
+
+# help message
+function usage() {
+  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
+  echo
+  echo "optional:"
+  echo "  -C, --config      specify path to config file"
+  echo "  -p, --popup       enable popup (on by default)"
+  echo "  -t, --time        time (in seconds) to display popup"
+  echo "  -u, --urgency     popup urgency (low, normal, critical)"
+  echo "  -v, --cava        enable changing cava color"
+  echo "  -c, --cover       enable cover mode"
+  echo "  -D, --debug       verbose output"
+  echo "  -h, --help        show this help message and exit"
+  echo
 }
 
 ###########################################################
 # init main
 
-# load config
-if [ -f $RC_FILE ]
-then
-  source $RC_FILE
-  [[ $DEBUG -gt 0 ]] && echo "Core: Loaded config: $RC_FILE"
-fi
-
-# create cache directory
-if [ ! -d $CACHE_DIR ]
-then
-  mkdir -p "$CACHE_DIR"
-  [[ $DEBUG -gt 0 ]] && echo "Core: Created cache: $CACHE_DIR"
-fi
-
-# purge old cover art
-[[ -d $CACHE_DIR ]] && purge_cache
-
-# check for stock image
-[[ ! -f $STOCK_ART ]] && make_stock_art
+load_config
+check_cache
+purge_cache
+make_stock_art
 
 # parse arguments
 for arg in $@
@@ -401,13 +455,13 @@ do
   case $arg in
     -C | --config)
       RC_FILE=$2
-      source $RC_FILE
+      load_config
       break;;
     -p | --popup)
       POPUP_ENABLE=true
       shift;;
     -t | --time)
-      POPUP_TIME=$2
+      POPUP_DURATION=$2
       shift 2;;
     -u | --urgency)
       POPUP_LEVEL=$2
@@ -428,20 +482,11 @@ do
 done
 
 ###########################################################
-# init extras
+# init actions
 
-# save original cava color
-if [[ $CAVA_ENABLE == true ]]
-then
-  CAVA_ORIG=$(_cava_cur_color)
-  [[ $DEBUG -gt 0 ]] && echo "Cava: Original color: $CAVA_ORIG"
-fi
-
-# set trap for feh
-if [[ $COVER_ENABLE == true ]]
-then
-  trap feh_exit EXIT
-fi
+init_popup
+init_cava
+init_cover
 
 ###########################################################
 # main

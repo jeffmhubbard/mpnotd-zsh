@@ -7,13 +7,11 @@
 #STOCK_ART=$CACHE_DIR/stock.jpg
 
 # notifications
-#POPUP_ENABLE=true
-#POPUP_TITLE=" Now Playing"
-#POPUP_TIME=10
+#POPUP_ENABLE=false
+#POPUP_SUBJECT=" Now Playing"
+#POPUP_BODY="%title%\nBy %artist%\nFrom %album%"
+#POPUP_DURATION=30
 #POPUP_LEVEL=low
-#POPUP_PFX_TITLE=""
-#POPUP_PFX_ARTIST="By "
-#POPUP_PFX_ALBUM="From "
 
 # cava
 #CAVA_ENABLE=false
