@@ -378,19 +378,20 @@ function init_write() {
 
 function write_file() {
   local separator="|"
+  local output
 
   [[ $DEBUG -gt 0 ]] && echo "Write: Output to: $WRITE_FILE"
-
-  # clear file
-  echo "" > $WRITE_FILE
 
   if [[ -f $WRITE_FILE ]]
   then
     for key val in ${(kv)SONG}
     do
-      # write key and value with separator
-      echo "$key${WRITE_SEP:-$separator}$val" >> $WRITE_FILE
+      # key and value with separator
+      output+="$key${WRITE_SEP:-$separator}$val\n"
     done
+
+    # overwrite existing file
+    echo -n $output > $WRITE_FILE
 
     return 0
   fi
