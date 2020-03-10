@@ -24,3 +24,7 @@
 #COVER_POSITION=+20+20
 #COVER_TIME=30
 
+# write
+#WRITE_ENABLE=false
+#WRITE_FILE=$CACHE_DIR/current.txt
+#WRITE_SEP="|"

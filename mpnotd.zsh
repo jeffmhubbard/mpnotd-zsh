@@ -31,6 +31,10 @@ COVER_ENABLE=false
 COVER_SIZE=200x200
 COVER_POSITION=+20+20
 
+# write
+WRITE_ENABLE=false
+WRITE_FILE=$CACHE_DIR/current.txt
+
 ###########################################################
 # core
 
@@ -63,6 +67,7 @@ function main() {
       [[ $POPUP_ENABLE == true ]] && show_popup
       [[ $CAVA_ENABLE == true ]] && cava_color
       [[ $COVER_ENABLE == true ]] && show_cover
+      [[ $WRITE_ENABLE == true ]] && write_file
 
     else
       [[ $DEBUG -gt 0 ]] && echo "Core: Unable to get song info..."
@@ -362,6 +367,38 @@ function show_cover() {
 function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
 ###########################################################
+# write out
+
+function init_write() {
+  if [[ ! -f $WRITE_FILE ]]
+  then
+    touch $WRITE_FILE 2> /dev/null
+  fi
+}
+
+function write_file() {
+  local separator="|"
+
+  [[ $DEBUG -gt 0 ]] && echo "Write: Output to: $WRITE_FILE"
+
+  # clear file
+  echo "" > $WRITE_FILE
+
+  if [[ -f $WRITE_FILE ]]
+  then
+    for key val in ${(kv)SONG}
+    do
+      # write key and value with separator
+      echo "$key${WRITE_SEP:-$separator}$val" >> $WRITE_FILE
+    done
+
+    return 0
+  fi
+
+  return 1
+}
+
+###########################################################
 
 function load_config() {
   if [ -f $RC_FILE ]
@@ -436,6 +473,7 @@ function usage() {
   echo "  -u, --urgency     popup urgency (low, normal, critical)"
   echo "  -v, --cava        enable changing cava color"
   echo "  -c, --cover       enable cover mode"
+  echo "  -w, --write       enable output file"
   echo "  -D, --debug       verbose output"
   echo "  -h, --help        show this help message and exit"
   echo
@@ -472,6 +510,10 @@ do
     -c | --cover)
       COVER_ENABLE=true
       shift;;
+    -w | --write)
+      WRITE_ENABLE=true
+      WRITE_FILE=$2
+      shift 2;;
     -D | --debug)
       DEBUG=1
       shift;;
@@ -487,6 +529,7 @@ done
 init_popup
 init_cava
 init_cover
+init_write
 
 ###########################################################
 # main

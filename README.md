@@ -40,6 +40,7 @@ To start from terminal:
 -u, --urgency   urgency level (low, normal, critical)
 -v, --cava      enable cava color
 -c, --cover     enable cover mode
+-c, --write     enable output file
 -D, --debug     verbose output
 -h, --help      print help
 ```
@@ -80,6 +81,13 @@ COVER_POSITION=+20+20
 
 # (if set) time to display cover art
 COVER_TIME=10
+
+# write current song info to file
+WRITE_ENABLE=true
+
+# (if set) key-value separator
+WRITE_SEP="|"
+
 ```
 
 ### Notes
