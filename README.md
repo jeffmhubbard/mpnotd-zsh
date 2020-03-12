@@ -13,14 +13,14 @@ Watches MPD for song change and takes action
 - Display cover art on desktop with [feh](https://feh.finalrewind.org/)
   
 ### Requirements  
-zsh  
-mpc  
-curl  
-jq  
-imagemagick  
-notify-send (optional)  
-cava (optional)  
-feh (optional)  
+- zsh
+- mpc
+- curl
+- jq
+- imagemagick
+- notify-send (optional)
+- cava (optional)
+- feh (optional)
 
 ### Installation  
 Manual:  
@@ -31,9 +31,9 @@ sudo install -Dm 755 mpnotd-zsh/mpnotd.zsh /usr/local/bin/mpnotd
   
 ### Usage  
 To start from terminal:  
-  `mpnotd --time 20 -u low --cava`  
+  `mpnotd --time 20 -u low --cava -w cur.txt`  
   
-```sh
+```
 -C, --config    specify path to config file
 -p, --popup     enable notifications (defaults on)
 -t, --time      time to display popup (in seconds)
@@ -80,7 +80,7 @@ COVER_SIZE=200x200
 COVER_POSITION=+20+20
 
 # (if set) time to display cover art
-COVER_TIME=10
+COVER_DURATION=10
 
 # write current song info to file
 WRITE_ENABLE=true

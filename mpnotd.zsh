@@ -16,25 +16,6 @@ MUSIC_DIR=$HOME/Music
 COVER_ART=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
 
-# popup
-POPUP_ENABLE=true
-POPUP_SUBJECT=" Now Playing"
-POPUP_DURATION=10
-POPUP_LEVEL=low
-
-# cava
-CAVA_ENABLE=false
-CAVA_CFG=$HOME/.config/cava/config
-
-# cover
-COVER_ENABLE=false
-COVER_SIZE=200x200
-COVER_POSITION=+20+20
-
-# write
-WRITE_ENABLE=false
-WRITE_FILE=$CACHE_DIR/current.txt
-
 ###########################################################
 # core
 
@@ -45,7 +26,8 @@ function main() {
 
   while true
   do
-    [[ $DEBUG -gt 0 ]] && { printf -- '-%.0s' $(seq 50); echo "" }
+    [[ $DEBUG -gt 0 ]] && \
+      { printf -- '-%.0s' $(seq 50); echo -n "\n--------- $(date) --------\n" }
 
     # clear previous song
     unset SONG
@@ -57,17 +39,17 @@ function main() {
       # create cache path
       cache_enc=$(_get_hash "${SONG[artist]} - ${SONG[album]}")
       SONG[cover]=$CACHE_DIR/cover-$cache_enc.jpg
-      [[ $DEBUG -gt 0 ]] && echo "Core: Cache cover to: ${SONG[cover]}"
+      [[ $DEBUG -gt 0 ]] && echo "Core: Cache to: ${SONG[cover]}"
 
       # get cover
       get_current_cover
 
       # actions
       [[ $DEBUG -gt 0 ]] && echo "Core: Actions..."
-      [[ $POPUP_ENABLE == true ]] && show_popup
-      [[ $CAVA_ENABLE == true ]] && cava_color
-      [[ $COVER_ENABLE == true ]] && show_cover
-      [[ $WRITE_ENABLE == true ]] && write_file
+      [[ $POPUP_ENABLE == true ]] && ( action_popup )&
+      [[ $CAVA_ENABLE == true ]] && ( action_cava )&
+      [[ $COVER_ENABLE == true ]] && ( action_cover )&
+      [[ $WRITE_ENABLE == true ]] && ( action_write )&
 
     else
       [[ $DEBUG -gt 0 ]] && echo "Core: Unable to get song info..."
@@ -95,20 +77,20 @@ function get_current_song() {
 
   current=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%\n%date%\n%genre%\n%track%\n%time%\n%position%]")}")
 
-  SONG[url]=$current[1]
-  SONG[title]=$current[2]
-  SONG[artist]=$current[3]
-  SONG[album]=$current[4]
-  SONG[date]=$current[5]
-  SONG[genre]=$current[6]
-  SONG[track]=$current[7]
-  SONG[time]=$current[8]
-  SONG[position]=$current[9]
+  SONG[url]=${current[1]:-null}
+  SONG[title]=${current[2]:-null}
+  SONG[artist]=${current[3]:-null}
+  SONG[album]=${current[4]:-null}
+  SONG[date]=${current[5]:-null}
+  SONG[genre]=${current[6]:-null}
+  SONG[track]=${current[7]:-null}
+  SONG[time]=${current[8]:-null}
+  SONG[position]=${current[9]:-null}
 
-  if [[ -z ${SONG[title]} ]]
-  then
-    return 1
-  fi
+  [[ ${SONG[url]} == null ]] && return 1
+  [[ ${SONG[title]} == null ]] && return 1
+  [[ ${SONG[artist]} == null ]] && return 1
+  [[ ${SONG[album]} == null ]] && return 1
 
   [[ $DEBUG -gt 0 ]] && { \
     for key val in ${(kv)SONG}
@@ -208,10 +190,15 @@ function find_deezer_image() {
 ###########################################################
 # popup
 
+POPUP_ENABLE=true
+POPUP_SUBJECT=" Now Playing"
+POPUP_DURATION=10
+POPUP_LEVEL=low
+
 function init_popup() { return }
 
 # display notification
-function show_popup() {
+function action_popup() {
   local icon=$COVER_ART
   local subject=$POPUP_SUBJECT
   local duration=$POPUP_DURATION
@@ -251,6 +238,9 @@ function show_popup() {
 ###########################################################
 # cava
 
+CAVA_ENABLE=false
+CAVA_CFG=$HOME/.config/cava/config
+
 function init_cava() {
   # save original cava color
   if [[ $CAVA_ENABLE == true ]]
@@ -261,7 +251,7 @@ function init_cava() {
 }
 
 # set cava foreground color
-function cava_color() {
+function action_cava() {
   if [ -f $CAVA_CFG ]
   then
     dcolor=$(_get_dominant_color $COVER_ART)
@@ -342,32 +332,39 @@ function _hex2rgb() { echo $((16#${1:0:2})) $((16#${1:2:2})) $((16#${1:4:2})) }
 ###########################################################
 # cover
 
+COVER_ENABLE=false
+COVER_SIZE=200x200
+COVER_POSITION=+20+20
+
 function init_cover() {
   # set trap for feh
   if [[ $COVER_ENABLE == true ]]
   then
-    trap feh_exit EXIT
+    trap exit_cover EXIT
   fi
 }
 
 # show floating cover art
-function show_cover() {
-  [[ -n $COVER_TIME ]] && local RUN_ONCE=true
+function action_cover() {
+  [[ -n $COVER_DURATION ]] && local RUN_ONCE=true
 
   if [[ $RUN_ONCE == true ]]
   then
     ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_ART )&|
     echo $! >$CACHE_DIR/cover.pid
-    [[ -n $COVER_TIME ]] && ( sleep $COVER_TIME; feh_exit; )&|
+    [[ -n $COVER_DURATION ]] && ( sleep $COVER_DURATION; exit_cover; )&|
     [[ $DEBUG -gt 0 ]] && echo "Cover: Started feh..."
   fi
 }
 
 # make feh exit with script
-function feh_exit() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
+function exit_cover() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
 ###########################################################
 # write out
+
+WRITE_ENABLE=false
+WRITE_FILE=$CACHE_DIR/current.txt
 
 function init_write() {
   if [[ ! -f $WRITE_FILE ]]
@@ -376,7 +373,7 @@ function init_write() {
   fi
 }
 
-function write_file() {
+function action_write() {
   local separator="|"
   local output
 
