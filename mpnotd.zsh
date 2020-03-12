@@ -317,13 +317,10 @@ function _get_palette_match() {
 function _color_dist() {
     local color1=($(_hex2rgb $1))
     local color2=($(_hex2rgb $2))
-    local minr=$(echo "$color1[1] - $color2[1]" | bc)
-    local ming=$(echo "$color1[2] - $color2[2]" | bc)
-    local minb=$(echo "$color1[3] - $color2[3]" | bc)
-    local sqr=$(echo "$minr * $minr" | bc)
-    local sqg=$(echo "$ming * $ming" | bc)
-    local sqb=$(echo "$minb * $minb" | bc)
-    echo $(echo "sqrt ( $sqr + $sqg + $sqb )" | bc)
+    local red=$(echo "var=$color1[1]-$color2[1];var*var" | bc)
+    local green=$(echo "var=$color1[2]-$color2[2];var*var" | bc)
+    local blue=$(echo "var=$color1[3]-$color2[3];var*var" | bc)
+    echo "sqrt ( $red + $green + $blue )" | bc
 }
 
 # convert hex color (without #) to rgb (128 128 128)
