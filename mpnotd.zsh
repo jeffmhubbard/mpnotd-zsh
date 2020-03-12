@@ -334,27 +334,30 @@ COVER_SIZE=200x200
 COVER_POSITION=+20+20
 
 function init_cover() {
-  # set trap for feh
+  # make feh exit with script
   if [[ $COVER_ENABLE == true ]]
   then
     trap exit_cover EXIT
   fi
 }
 
-# show floating cover art
+# show cover art
 function action_cover() {
-  [[ -n $COVER_DURATION ]] && local RUN_ONCE=true
+  [[ -n $COVER_DURATION ]] && { local RUN_ONCE=true; exit_cover; }
 
   if [[ $RUN_ONCE == true ]]
   then
+    # start feh, write pid
     ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_ART )&|
     echo $! >$CACHE_DIR/cover.pid
-    [[ -n $COVER_DURATION ]] && ( sleep $COVER_DURATION; exit_cover; )&|
     [[ $DEBUG -gt 0 ]] && echo "Cover: Started feh..."
+
+    # if set, kill feh after duration
+    [[ -n $COVER_DURATION ]] && ( sleep $COVER_DURATION; exit_cover; )&|
   fi
 }
 
-# make feh exit with script
+# kill feh using pid file
 function exit_cover() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
 ###########################################################
