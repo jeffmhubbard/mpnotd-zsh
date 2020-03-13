@@ -437,6 +437,19 @@ function make_stock_art() {
   fi
 }
 
+# return list of action names
+function _get_actions() {
+  local -a actions
+  local funcs=($(typeset +f))
+
+  for f in $funcs
+  do
+    [[ $f = $'action_'* ]] && actions+=(${f/action_/})
+  done
+  echo $actions
+}
+
+
 # look for pid files in cache directory
 # if processes still running, kill them
 # then write new pid
