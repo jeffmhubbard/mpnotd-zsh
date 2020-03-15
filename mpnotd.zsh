@@ -46,10 +46,7 @@ function main() {
 
       # actions
       [[ $DEBUG -gt 0 ]] && echo "Core: Actions..."
-      [[ $POPUP_ENABLE == true ]] && ( action_popup )&
-      [[ $CAVA_ENABLE == true ]] && ( action_cava )&
-      [[ $COVER_ENABLE == true ]] && ( action_cover )&
-      [[ $WRITE_ENABLE == true ]] && ( action_write )&
+      run_actions
 
     else
       [[ $DEBUG -gt 0 ]] && echo "Core: Unable to get song info..."
@@ -437,18 +434,27 @@ function make_stock_art() {
   fi
 }
 
-# return list of action names
-function _get_actions() {
-  local -a actions
-  local funcs=($(typeset +f))
-
-  for f in $funcs
+# executes functions starting with init_
+function init_actions() {
+  local -a myfuncs=($(typeset +f))
+  local init
+  for init in $myfuncs
   do
-    [[ $f = $'action_'* ]] && actions+=(${f/action_/})
+    local toggle="${(U)init/init_/}_ENABLE"
+    [[ $init == $'init_'* &&  ${(P)toggle} == true ]] && { $init & }
   done
-  echo $actions
 }
 
+# executes functions starting with action_
+function run_actions() {
+  local -a myfuncs=($(typeset +f))
+  local action
+  for action in $myfuncs
+  do
+    local toggle="${(U)action/action_/}_ENABLE"
+    [[ $action == $'action_'* &&  ${(P)toggle} == true ]] && { $action & }
+  done
+}
 
 # look for pid files in cache directory
 # if processes still running, kill them
@@ -491,7 +497,7 @@ function usage() {
 }
 
 ###########################################################
-# init main
+# main
 
 load_config
 check_cache
@@ -534,16 +540,7 @@ do
   esac
 done
 
-###########################################################
-# init actions
-
-init_popup
-init_cava
-init_cover
-init_write
-
-###########################################################
-# main
+init_actions
 
 clean_run
 
