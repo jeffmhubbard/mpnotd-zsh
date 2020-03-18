@@ -20,9 +20,9 @@ STOCK_ART=$CACHE_DIR/stock.jpg
 # core
 
 # main
+# get song info, get cover art, exec actions, wait on mpc idle
 function main() {
   local RUN_ONCE=true
-  local cache_enc
 
   while true
   do
@@ -37,32 +37,38 @@ function main() {
     then
 
       # create cache path
-      cache_enc=$(_get_hash "${SONG[artist]} - ${SONG[album]}")
+      local cache_enc=$(_get_hash "${SONG[artist]} - ${SONG[album]}")
       SONG[cover]=$CACHE_DIR/cover-$cache_enc.jpg
       [[ $DEBUG -gt 0 ]] && echo "Core: Cache to: ${SONG[cover]}"
 
       # get cover
       get_current_cover
 
-      # actions
-      [[ $DEBUG -gt 0 ]] && echo "Core: Actions..."
-      run_actions
-
     else
       [[ $DEBUG -gt 0 ]] && echo "Core: Unable to get song info..."
       cp $STOCK_ART $COVER_ART
     fi
 
-    RUN_ONCE=false
+    if [[ ! ${SONG[title]} == null ]]
+    then
+      # actions
+      [[ $DEBUG -gt 0 ]] && echo "Core: Exec actions..."
+      run_actions
+
+      RUN_ONCE=false
+    fi
 
     # now we wait
     while true
     do
       [[ $DEBUG -gt 0 ]] && echo "Core: Waiting..."
-      mpc idle player &>/dev/null && (mpc status | grep "\[playing\]" &>/dev/null) && break
+      mpc idle player &>/dev/null && \
+        (mpc status | grep "\[playing\]" &>/dev/null) && \
+        break
     done
 
-    sleep 1
+    # this helps with bogus song info when streaming
+    [[ ${SONG[file]} == http* ]] && sleep 0.75
 
   done
 }
@@ -72,9 +78,9 @@ function get_current_song() {
   local current
   typeset -Ag SONG
 
-  current=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%\n%date%\n%genre%\n%track%\n%time%\n%position%]")}")
+  current=("${(f@)$(mpc current -f "%file%\n%title%\n%artist%\n%album%\n%date%\n%genre%\n%track%\n%time%\n%position%")}")
 
-  SONG[url]=${current[1]:-null}
+  SONG[file]=${current[1]:-null}
   SONG[title]=${current[2]:-null}
   SONG[artist]=${current[3]:-null}
   SONG[album]=${current[4]:-null}
@@ -84,7 +90,7 @@ function get_current_song() {
   SONG[time]=${current[8]:-null}
   SONG[position]=${current[9]:-null}
 
-  [[ ${SONG[url]} == null ]] && return 1
+  [[ ${SONG[file]} == null ]] && return 1
   [[ ${SONG[title]} == null ]] && return 1
   [[ ${SONG[artist]} == null ]] && return 1
   [[ ${SONG[album]} == null ]] && return 1
@@ -111,11 +117,11 @@ function get_current_cover() {
   then
 
     # if we find a URL, just make up local path
-    if [[ ${SONG[url]} == http* ]]
+    if [[ ${SONG[file]} == http* ]]
     then
       searchpath=$MUSIC_DIR/${SONG[artist]}/${SONG[album]}
     else
-      searchpath=$MUSIC_DIR/${SONG[url]:t}
+      searchpath=$MUSIC_DIR/${SONG[file]:t}
     fi
 
     # if we don't find locally, search deezer
@@ -147,10 +153,10 @@ function find_local_image() {
 
   if [[ -f $filepath ]]
   then
-    matches=(${(0)"$(find $filepath:h -type f -name '*.jpg')"})
+    matches=(${(0)"$(find ${filepath:h} -type f -name '*.jpg')"})
     for artwork in $matches
     do
-      if [[ ${common[(ie)$artwork:t]} -le ${#common} ]]
+      if [[ ${common[(ie)${artwork:t}]} -le ${#common} ]]
       then
         cp $artwork ${SONG[cover]}
         [[ $DEBUG -gt 0 ]] && echo "Core: Found cover!"
@@ -240,11 +246,8 @@ CAVA_CFG=$HOME/.config/cava/config
 
 function init_cava() {
   # save original cava color
-  if [[ $CAVA_ENABLE == true ]]
-  then
-    CAVA_ORIG=$(_cava_cur_color)
-    [[ $DEBUG -gt 0 ]] && echo "Cava: Original color: $CAVA_ORIG"
-  fi
+  CAVA_ORIG=$(_cava_cur_color)
+  [[ $DEBUG -gt 0 ]] && echo "Cava: Original color: $CAVA_ORIG"
 }
 
 # set cava foreground color
@@ -291,7 +294,8 @@ function _get_dominant_color() {
   
   if [ -f $infile ]
   then
-    histogram=$(magick $infile -format %c -depth 8 histogram:info:)
+    histogram=$(magick $infile -format %c \
+      -define histogram:unique-colors=true -depth 8 histogram:info:)
     color=($(echo $histogram | sort -n | tail -n 1))
     echo ${color[3]:gs/#/}
   fi
@@ -332,10 +336,7 @@ COVER_POSITION=+20+20
 
 function init_cover() {
   # make feh exit with script
-  if [[ $COVER_ENABLE == true ]]
-  then
-    trap exit_cover EXIT
-  fi
+  trap exit_cover EXIT
 }
 
 # show cover art
@@ -358,7 +359,7 @@ function action_cover() {
 function exit_cover() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
 
 ###########################################################
-# write out
+# write
 
 WRITE_ENABLE=false
 WRITE_FILE=$CACHE_DIR/current.txt
@@ -394,6 +395,7 @@ function action_write() {
 }
 
 ###########################################################
+# setup functions
 
 function load_config() {
   if [ -f $RC_FILE ]
@@ -420,7 +422,7 @@ function purge_cache() {
   then
     if find $CACHE_DIR -name "$pattern" -type f -mtime +$CACHE_DAYS -exec rm -f {} \;
     then
-      [[ DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_DAYS days"
+      [[ $DEBUG -gt 0 ]] && echo "Core: Purged cache: $CACHE_DAYS days"
     fi
   fi
 }
@@ -430,30 +432,8 @@ function make_stock_art() {
   if [ ! -f $STOCK_ART ]
   then
     magick -size 64x64 gradient:blue-black $STOCK_ART
-    [[ DEBUG -gt 0 ]] && echo "Core: Created stock image: $STOCK_ART"
+    [[ $DEBUG -gt 0 ]] && echo "Core: Created stock image: $STOCK_ART"
   fi
-}
-
-# executes functions starting with init_
-function init_actions() {
-  local -a myfuncs=($(typeset +f))
-  local init
-  for init in $myfuncs
-  do
-    local toggle="${(U)init/init_/}_ENABLE"
-    [[ $init == $'init_'* &&  ${(P)toggle} == true ]] && { $init & }
-  done
-}
-
-# executes functions starting with action_
-function run_actions() {
-  local -a myfuncs=($(typeset +f))
-  local action
-  for action in $myfuncs
-  do
-    local toggle="${(U)action/action_/}_ENABLE"
-    [[ $action == $'action_'* &&  ${(P)toggle} == true ]] && { $action & }
-  done
 }
 
 # look for pid files in cache directory
@@ -464,19 +444,40 @@ function clean_run() {
   local pidnew=$CACHE_DIR/$APP_NAME.pid
   local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
   local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
-  local readpid
 
   if [[ $#pidlist -gt 0 ]]
   then
     for pidfile in $pidlist
     do
-      readpid=$(cat $pidfile)
+      local readpid=$(cat $pidfile)
       [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
     done
   fi
 
-  [[ DEBUG -gt 0 ]] && echo "Core: Writing new PID: $pid"
+  [[ $DEBUG -gt 0 ]] && echo "Core: Writing new PID: $pid"
   echo $pid > $pidnew
+}
+
+# execute init_ functions if enabled
+function init_actions() {
+  local -a myfuncs=($(typeset +f))
+  local init
+  for init in $myfuncs
+  do
+    local toggle="${(U)init/init_/}_ENABLE"
+    [[ $init == $'init_'* &&  ${(P)toggle} == true ]] && { $init }
+  done
+}
+
+# execute action_ functions if enabled
+function run_actions() {
+  local -a myfuncs=($(typeset +f))
+  local action
+  for action in $myfuncs
+  do
+    local toggle="${(U)action/action_/}_ENABLE"
+    [[ $action == $'action_'* &&  ${(P)toggle} == true ]] && { $action & }
+  done
 }
 
 # help message
@@ -497,7 +498,7 @@ function usage() {
 }
 
 ###########################################################
-# main
+# startup
 
 load_config
 check_cache
@@ -540,10 +541,15 @@ do
   esac
 done
 
-init_actions
-
 clean_run
 
+###########################################################
+# main
+
+[[ $DEBUG -gt 0 ]] && echo "Core: Init actions..."
+init_actions
+
+[[ $DEBUG -gt 0 ]] && echo "Core: Starting loop"
 main
 
 exit 0

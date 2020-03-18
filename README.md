@@ -7,10 +7,11 @@ Watches MPD for song change and takes action
 ### Features
 - Gathers detailed song info
 - Searches filesystem and online for cover art
-- Caches covers to reduce web traffic
-- Display song info and cover via [notify-send](https://gitlab.gnome.org/GNOME/libnotify)
-- Change [cava](https://github.com/karlstav/cava) color based on cover art
-- Display cover art on desktop with [feh](https://feh.finalrewind.org/)
+- Configurable, independent actions
+  - Popup - Display song info and cover via [notify-send](https://gitlab.gnome.org/GNOME/libnotify)
+  - Cava - Change [cava](https://github.com/karlstav/cava) color based on cover art
+  - Cover - Display cover art on desktop with [feh](https://feh.finalrewind.org/)
+  - Write - Write current song info to file for easy parsing
   
 ### Requirements  
 - zsh
