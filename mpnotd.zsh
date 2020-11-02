@@ -15,6 +15,7 @@ CACHE_DAYS=10
 MUSIC_DIR=$HOME/Music
 COVER_ART=$CACHE_DIR/current.jpg
 STOCK_ART=$CACHE_DIR/stock.jpg
+ICON_SIZE=64
 
 ###########################################################
 # core
@@ -136,12 +137,19 @@ function get_current_cover() {
   # copy image to current.jpg
   if [[ -f ${SONG[cover]} ]]
   then
-    cp ${SONG[cover]} $COVER_ART
+    _get_thumbnail ${SONG[cover]}
   else
-    cp $STOCK_ART $COVER_ART
+    _get_thumbnail $STOCK_ART
   fi
 
   return 0
+}
+
+function _get_thumbnail() {
+  if [ -f $1 ]
+  then
+    convert $1 -trim -resize ${ICON_SIZE}x${ICON_SIZE} $COVER_ART
+  fi
 }
 
 # attempt to locate cover in local filesystem
@@ -212,6 +220,8 @@ function action_popup() {
   do
     local ${key}=$val
   done
+
+  [[ $title == null ]] && return 1
 
   body="$title\nBy $artist\nFrom $album ($date)"
 
