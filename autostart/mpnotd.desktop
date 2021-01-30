@@ -1,5 +1,6 @@
 [Desktop Entry]
-Name=mpnotd
+Name=MPD Notification Daemon
 Type=Application
 Exec=mpnotd
+TryExec=mpnotd
 StartupNotify=false

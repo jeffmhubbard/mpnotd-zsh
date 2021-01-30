@@ -1,4 +1,4 @@
-# MPD Notification Daemon (Zsh)  
+# MPD Notification Daemon
   
 ![Demo Animation](../assets/demo.gif?raw=true)
 
@@ -8,7 +8,7 @@ Watches MPD for song change and takes action
 - Gathers detailed song info
 - Searches filesystem and online for cover art
 - Configurable, independent actions
-  - Popup - Display song info and cover via [notify-send](https://gitlab.gnome.org/GNOME/libnotify)
+  - Popup - Display song info and cover via [libnotify](https://gitlab.gnome.org/GNOME/libnotify)
   - Cava - Change [cava](https://github.com/karlstav/cava) color based on cover art
   - Cover - Display cover art on desktop with [feh](https://feh.finalrewind.org/)
   - Write - Write current song info to file for easy parsing
@@ -19,7 +19,7 @@ Watches MPD for song change and takes action
 - curl
 - jq
 - imagemagick
-- notify-send (optional)
+- libnotify
 - cava (optional)
 - feh (optional)
 
@@ -27,7 +27,8 @@ Watches MPD for song change and takes action
 Manual:  
 ```sh
 git clone https://github.com/jeffmhubbard/mpnotd-zsh
-sudo install -Dm 755 mpnotd-zsh/mpnotd.zsh /usr/local/bin/mpnotd
+cd mpnotd-zsh
+sudo make install
 ```
   
 ### Usage  
@@ -41,14 +42,14 @@ To start from terminal:
 -u, --urgency   urgency level (low, normal, critical)
 -v, --cava      enable cava color
 -c, --cover     enable cover mode
--c, --write     enable output file
+-w, --write     enable output file
 -D, --debug     verbose output
 -h, --help      print help
 ```
   
 ### Configuration  
 ```sh
-# ~/.config/mpnotd/config
+# ~/.config/mpnotd/mpnotd.rc
 
 # number of days to cache cover art for
 CACHE_DAYS=10
@@ -66,7 +67,7 @@ POPUP_DURATION=30
 POPUP_LEVEL=low
 
 # change cava fg color based on cover art
-CAVA_ENABLED=true
+CAVA_ENABLE=true
 
 # (if set) palette to use instead of dominant color
 CAVA_COLORS=(fc391f 31e722 eaec23 5833ff f935f8 14f0f0)
