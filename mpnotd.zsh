@@ -1,21 +1,28 @@
 #!/usr/bin/env zsh
-#
-# mpnotd-zsh
-#
-# watch MPD for song change and display notification
-# requires: mpc curl convert jq sed notify-send cava md5sum
-#
 
-APP_NAME=mpnotd
+# mpnotd - MPD Notification Daemon
+# Jeff M. Hubbard 2020, 2021
+
+# required: mpc curl imagemagick jq libnotify 
+# optional: feh cava
+
+# script name
+SH_NAME=${ZSH_ARGZERO:t:r}
+
+# paths
+CONF_DIR="$XDG_CONFIG_HOME/$SH_NAME"
+CACHE_DIR="$XDG_CACHE_HOME/$SH_NAME"
+RC_PATH="$CONF_DIR/${SH_NAME}.rc"
 
 # defaults
-RC_FILE=$HOME/.config/$APP_NAME/config
-CACHE_DIR=$HOME/.cache/$APP_NAME
 CACHE_DAYS=10
-MUSIC_DIR=$HOME/Music
-COVER_ART=$CACHE_DIR/current.jpg
-STOCK_ART=$CACHE_DIR/stock.jpg
+MUSIC_DIR="$HOME/Music"
+COVER_ART="$CACHE_DIR/current.jpg"
+STOCK_ART="$CACHE_DIR/stock.jpg"
 ICON_SIZE=64
+
+# create directories
+[[ -d $CACHE_DIR ]] || mkdir -p $CACHE_DIR 2>/dev/null
 
 ###########################################################
 # core
@@ -39,7 +46,7 @@ function main() {
 
       # create cache path
       local cache_enc=$(_get_hash "${SONG[artist]} - ${SONG[album]}")
-      SONG[cover]=$CACHE_DIR/cover-$cache_enc.jpg
+      SONG[cover]="$CACHE_DIR/cover-$cache_enc.jpg"
       [[ $DEBUG -gt 0 ]] && echo "Core: Cache to: ${SONG[cover]}"
 
       # get cover
@@ -122,7 +129,7 @@ function get_current_cover() {
     then
       searchpath=$MUSIC_DIR/${SONG[artist]}/${SONG[album]}
     else
-      searchpath=$MUSIC_DIR/${SONG[file]:t}
+      searchpath=$MUSIC_DIR/${SONG[file]:h}
     fi
 
     # if we don't find locally, search deezer
@@ -155,16 +162,16 @@ function _get_thumbnail() {
 # attempt to locate cover in local filesystem
 function find_local_image() {
   local filepath=$1
-  local common=("cover.jpg" "folder.jpg" "albumart.jpg")
+  local common=("cover.jpg" "folder.jpg" "albumart.jpg" "albumartsmall.jpg")
 
   [[ $DEBUG -gt 0 ]] && echo "Core: Searching: $filepath"
 
-  if [[ -f $filepath ]]
+  if [[ -d $filepath ]]
   then
-    matches=(${(0)"$(find ${filepath:h} -type f -name '*.jpg')"})
+    matches=(${(0)"$(find ${filepath} -type f -name '*.jpg' -print0)"})
     for artwork in $matches
     do
-      if [[ ${common[(ie)${artwork:t}]} -le ${#common} ]]
+      if [[ ${common[(ie)${artwork:t:l}]} -le ${#common} ]]
       then
         cp $artwork ${SONG[cover]}
         [[ $DEBUG -gt 0 ]] && echo "Core: Found cover!"
@@ -238,7 +245,7 @@ function action_popup() {
   ((duration = $duration * 1000))
 
   [[ $DEBUG -gt 0 ]] && echo "Popup: Sending now..."
-  if ! notify-send -a ${APP_NAME} ${subject} ${POPUP_BODY:-$body} \
+  if ! notify-send -a ${SH_NAME} ${subject} ${POPUP_BODY:-$body} \
     -i ${icon} -t ${duration} -u ${urgency}
   then
     [[ $DEBUG -gt 0 ]] && echo "Popup: Sending failed!"
@@ -252,7 +259,7 @@ function action_popup() {
 # cava
 
 CAVA_ENABLE=false
-CAVA_CFG=$HOME/.config/cava/config
+CAVA_CFG="$HOME/.config/cava/config"
 
 function init_cava() {
   # save original cava color
@@ -356,8 +363,8 @@ function action_cover() {
   if [[ $RUN_ONCE == true ]]
   then
     # start feh, write pid
-    ( feh --class $APP_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_ART )&|
-    echo $! >$CACHE_DIR/cover.pid
+    ( feh --class $SH_NAME -g $COVER_SIZE$COVER_POSITION -xZ. $COVER_ART )&|
+    echo $! >! $CACHE_DIR/cover.pid
     [[ $DEBUG -gt 0 ]] && echo "Cover: Started feh..."
 
     # if set, kill feh after duration
@@ -366,7 +373,7 @@ function action_cover() {
 }
 
 # kill feh using pid file
-function exit_cover() { kill -9 $(cat $CACHE_DIR/cover.pid) &> /dev/null }
+function exit_cover() { kill -9 $(cat $CACHE_DIR/cover.pid) &>/dev/null }
 
 ###########################################################
 # write
@@ -377,7 +384,7 @@ WRITE_FILE=$CACHE_DIR/current.txt
 function init_write() {
   if [[ ! -f $WRITE_FILE ]]
   then
-    touch $WRITE_FILE 2> /dev/null
+    touch $WRITE_FILE 2>/dev/null
   fi
 }
 
@@ -408,10 +415,10 @@ function action_write() {
 # setup functions
 
 function load_config() {
-  if [ -f $RC_FILE ]
+  if [ -f $RC_PATH ]
   then
-    source $RC_FILE
-    [[ $DEBUG -gt 0 ]] && echo "Core: Loaded config: $RC_FILE"
+    source $RC_PATH
+    [[ $DEBUG -gt 0 ]] && echo "Core: Loaded config: $RC_PATH"
   fi
 }
 
@@ -446,28 +453,6 @@ function make_stock_art() {
   fi
 }
 
-# look for pid files in cache directory
-# if processes still running, kill them
-# then write new pid
-function clean_run() {
-  local pid=$$
-  local pidnew=$CACHE_DIR/$APP_NAME.pid
-  local pidlist=($(find $CACHE_DIR -name "*.pid" 2> /dev/null))
-  local procs=($(pgrep -af $APP_NAME | cut -d ' ' -f 1))
-
-  if [[ $#pidlist -gt 0 ]]
-  then
-    for pidfile in $pidlist
-    do
-      local readpid=$(cat $pidfile)
-      [[ ${procs[(ie)$readpid]} -le ${#procs} ]] && kill -9 $readpid
-    done
-  fi
-
-  [[ $DEBUG -gt 0 ]] && echo "Core: Writing new PID: $pid"
-  echo $pid > $pidnew
-}
-
 # execute init_ functions if enabled
 function init_actions() {
   local -a myfuncs=($(typeset +f))
@@ -492,7 +477,7 @@ function run_actions() {
 
 # help message
 function usage() {
-  echo "Usage: $APP_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
+  echo "Usage: $SH_NAME [-t <SECONDS>] [-u <URGENCY>] [-v] [-c]"
   echo
   echo "optional:"
   echo "  -C, --config      specify path to config file"
@@ -505,24 +490,32 @@ function usage() {
   echo "  -D, --debug       verbose output"
   echo "  -h, --help        show this help message and exit"
   echo
+  exit 0
+}
+
+# prevent multiple instances from running
+function () {
+  pid=$$
+  pidfile=$CACHE_DIR/$SH_NAME.pid
+  if [ -f $pidfile ]; then
+    oldpid=$(head -n 1 $pidfile)
+    if [[ ! $pid == $oldpid ]]; then
+      kill -9 $oldpid 2>/dev/null
+    fi
+  fi
+  echo $pid >! $pidfile
 }
 
 ###########################################################
-# startup
-
-load_config
-check_cache
-purge_cache
-make_stock_art
+# main
 
 # parse arguments
 for arg in $@
 do
   case $arg in
     -C | --config)
-      RC_FILE=$2
-      load_config
-      break;;
+      RC_PATH=$2
+      shift 2;;
     -p | --popup)
       POPUP_ENABLE=true
       shift;;
@@ -546,22 +539,23 @@ do
       DEBUG=1
       shift;;
     -h | --help)
-      usage
-      exit 0;;
+      usage;;
   esac
 done
 
-clean_run
-
-###########################################################
-# main
+# startup
+load_config
+check_cache
+purge_cache
+make_stock_art
 
 [[ $DEBUG -gt 0 ]] && echo "Core: Init actions..."
 init_actions
 
 [[ $DEBUG -gt 0 ]] && echo "Core: Starting loop"
+
 main
 
 exit 0
 
-# vim: set ft=zsh ts=2 sw=0 et:
+# vim: ft=zsh ts=2 sw=2 et:
